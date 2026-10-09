@@ -52,16 +52,22 @@ NOT_CODE = re.compile(r"(\.(md|mdx|txt|rst)$|(^|/)(docs?|tests?|__tests__|fixtur
 # Personal data counts only where it is stored or queried, not wherever "email" appears.
 PERSONAL_DATA = re.compile(r"\b(e-?mail|phone|address|date_of_birth|dob|birthdate|ssn|national_id|pii|gdpr)\b", re.I)
 STORAGE_PATH = re.compile(r"(^|/)(migrations?|schema|models?|entities|repositor(y|ies)|db|database|prisma|sql)(/|\.|$)|\.(sql|prisma)$", re.I)
-STORAGE_LINE = re.compile(r"\b(insert\s+into|update\s+\w+\s+set|create\s+table|alter\s+table|select\s[^;\n]{0,200}?\sfrom|\.(insert|upsert|update|create|save|findMany|findUnique|query)\s*\()", re.I)
+STORAGE_LINE = re.compile(r"\b(insert\s+into|update\s+\w+\s+set|create\s+table|alter\s+table|\.(insert|upsert|update|create|save|findMany|findUnique|query)\s*\()", re.I)
+SELECT_WORD, FROM_WORD = re.compile(r"\bselect\b", re.I), re.compile(r"\bfrom\b", re.I)  # two linear searches, any span
 
 
-MAX_LINE = 2000  # longer added lines (minified or generated) are scanned only up to here
+def _stores_data(text):
+    return bool(STORAGE_LINE.search(text) or (SELECT_WORD.search(text) and FROM_WORD.search(text)))
 
 
-def _diff_path(header):
-    """Path from a '+++ b/x' / '--- a/x' header: git's tab after names with spaces
-    is dropped and C-quoted names (non-ASCII, core.quotePath) are decoded."""
-    raw = header[4:].split("\t")[0].rstrip("\r")
+MAX_LINE = 2000  # specialist signals scan added lines up to here (minified or generated lines)
+
+
+def _diff_path(raw):
+    """A path as git prints it in headers: git's tab after names with spaces is
+    dropped, C-quoted names (non-ASCII, core.quotePath) are decoded and the
+    a/ or b/ prefix (the packet passes --src-prefix/--dst-prefix) is removed."""
+    raw = raw.split("\t")[0].rstrip("\r")
     if raw.startswith('"') and raw.endswith('"') and len(raw) >= 2:
         try:
             raw = raw[1:-1].encode("latin-1", "backslashreplace").decode("unicode_escape").encode("latin-1").decode("utf-8")
@@ -72,69 +78,105 @@ def _diff_path(header):
     return raw[2:] if raw[:2] in ("a/", "b/") else raw
 
 
-def diff_events(diff_text):
+def _git_header_path(line):
+    """New path from 'diff --git a/X b/Y' (used for renames and binary files,
+    which have no +++ header)."""
+    rest = line[len("diff --git "):]
+    if rest.startswith('"'):
+        end = rest.rfind(' "b/')
+        return _diff_path(rest[end + 1:]) if end > 0 else None
+    end = rest.rfind(" b/")
+    return _diff_path(rest[end + 1:]) if end > 0 else None
+
+
+def diff_events(diff_text, max_line=MAX_LINE):
     """Yield (kind, path, text) for a unified diff: 'file' once per changed file
-    (text is 'new' for an added file), then 'add', 'del' and 'ctx' lines. Hunk
-    lengths are counted, so a content line that starts with '+++ ' is content,
-    not a header. Lines are cut to MAX_LINE characters."""
-    path, old_path, is_new, left_old, left_new, announced = None, None, False, 0, 0, False
+    (text is 'new', 'deleted' or ''), 'hunk' at each @@ header, then 'add',
+    'del' and 'ctx' lines. Hunk lengths are counted, so a content line that
+    starts with '+++ ' is content, not a header. Renames and binary changes
+    without a +++ header still give a 'file' event. Lines lose a trailing CR and
+    are cut to max_line characters (None: whole lines)."""
+    cut = (lambda t: t.rstrip("\r")[:max_line]) if max_line else (lambda t: t.rstrip("\r"))
+    path = old_path = pending = None
+    status, left_old, left_new = "", 0, 0
     for line in diff_text.split("\n"):
         if left_old > 0 or left_new > 0:
-            mark, text = line[:1], line[1:MAX_LINE + 1]
+            mark, text = line[:1], cut(line[1:])
             if mark == "+":
                 left_new -= 1
-                if path:
-                    yield "add", path, text
+                kind = "add"
             elif mark == "-":
                 left_old -= 1
-                if path:
-                    yield "del", path, text
+                kind = "del"
             elif mark == "\\":
                 continue  # "\ No newline at end of file"
             else:
                 left_old -= 1
                 left_new -= 1
-                if path:
-                    yield "ctx", path, text
+                kind = "ctx"
+            if path:
+                yield kind, path, text
             continue
         if line.startswith("diff --git "):
-            path, old_path, is_new, announced = None, None, False, False
+            if pending:
+                yield "file", pending, status
+            path, old_path, status = None, None, ""
+            pending = _git_header_path(line)
+        elif line.startswith("rename to ") and pending is not None:
+            pending = _diff_path("b/" + line[len("rename to "):]) or pending
+        elif line.startswith("new file mode"):
+            status = "new"
+        elif line.startswith("deleted file mode"):
+            status = "deleted"
         elif line.startswith("--- "):
-            old_path = _diff_path(line)
-            is_new = old_path is None
+            old_path = _diff_path(line[4:])
+            if old_path is None:
+                status = "new"
         elif line.startswith("+++ "):
-            path = _diff_path(line) or old_path  # a deleted file keeps its old name
-            announced = False
+            new_path = _diff_path(line[4:])
+            if new_path is None:
+                status = "deleted"
+            path, pending = new_path or old_path, None  # a deleted file keeps its old name
             if path:
-                yield "file", path, "new" if is_new else ""
-                announced = True
+                yield "file", path, status
         elif line.startswith("@@"):
             m = re.match(r"@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@", line)
             if m:
                 left_old = int(m.group(1)) if m.group(1) is not None else 1
                 left_new = int(m.group(2)) if m.group(2) is not None else 1
+                if path:
+                    yield "hunk", path, ""
         elif path and line[:1] in "+-" and line:
             # Hand-written diffs without hunk headers (tests, pasted patches).
-            yield ("add" if line[0] == "+" else "del"), path, line[1:MAX_LINE + 1]
+            yield ("add" if line[0] == "+" else "del"), path, cut(line[1:])
+    if pending:
+        yield "file", pending, status
+
+
+def _repo_signals(extra, flags=re.I):
+    """Repository signals as {'repo: NAME': compiled}, whatever shape they came in."""
+    return {(n if n.startswith("repo: ") else f"repo: {n}"): (rx if isinstance(rx, re.Pattern) else re.compile(rx, flags))
+            for n, rx in (extra or {}).items()}
 
 
 def security_tier(diff_text, extra_signals=None):
     """'remy+' with its matches when a security signal appears in a changed code or
     config path or added line (docs, tests and fixtures are ignored: prose about auth
     is not an auth change), otherwise 'remy'. Cross-service: signals in 2+ top-level dirs.
-    Repository signals are added under 'repo: <name>' and never replace a built-in one."""
+    Whole lines are scanned (the patterns are linear), deleted and renamed files
+    count by path, and repository signals are added as 'repo: NAME', never
+    replacing a built-in one."""
     signals = {name: re.compile(p, re.I | re.M) for name, p in SECURITY_SIGNALS.items()}
-    for name, pattern in (extra_signals or {}).items():
-        signals[f"repo: {name}"] = pattern if isinstance(pattern, re.Pattern) else re.compile(pattern, re.I | re.M)
+    signals.update(_repo_signals(extra_signals, re.I | re.M))
     matches = {}
-    for kind, path, text in diff_events(diff_text):
+    for kind, path, text in diff_events(diff_text, max_line=None):
         if kind not in ("file", "add") or NOT_CODE.search(path):
             continue
         text = path if kind == "file" else text
         for name, rx in signals.items():
             if rx.search(text):
                 matches.setdefault(name, set()).add(path)
-        if PERSONAL_DATA.search(text) and (STORAGE_PATH.search(path) or STORAGE_LINE.search(text)):
+        if PERSONAL_DATA.search(text) and (STORAGE_PATH.search(path) or _stores_data(text)):
             matches.setdefault("stored personal data", set()).add(path)
     files = {f for fs in matches.values() for f in fs}
     tops = {f.split("/")[0] for f in files if "/" in f}
@@ -150,7 +192,7 @@ def security_tier(diff_text, extra_signals=None):
 # generated files are ignored. Every pattern carries its own boundaries (no shared
 # \b(...)\b wrapper, which silently kills alternatives starting with '@' or a
 # quote or ending in ')') and is bounded, so a long line cannot backtrack.
-I, CS = re.I, 0
+IGNORECASE, CASE_SENSITIVE = re.I, 0
 _SQL = r"\b(?:SELECT\s[^;\n]{0,200}?\bFROM|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|UPSERT|ON\s+CONFLICT|FOR\s+UPDATE|(?:INNER|LEFT|RIGHT|OUTER|CROSS)\s+JOIN|GROUP\s+BY|ORDER\s+BY)\b"
 _ORM = (r"\.(?:query|execute|executemany|raw|findMany|findFirst|findUnique|findAll|findOne|findById|aggregate|countDocuments|bulkWrite|insertMany|updateMany|deleteMany)\s*\("
         r"|\b(?:getPool|createPool|pool\.connect|knex|sequelize|typeorm|drizzle|mongoose|ioredis|cursor\.execute)\b|\bnew\s+Pool\s*\(|\b(?:prisma|redis|db)\.\w+\.\w+\s*\(")
@@ -158,48 +200,48 @@ _NET = (r"(?<![\w.$])(?:fetch|axios|got|ky|superagent|undici\.request)\s*\(|\bax
         r"|\b(?:https?\.(?:request|get)|XMLHttpRequest|EventSource|grpc|octokit|requests\.(?:get|post|put|patch|delete|request)|httpx\.\w+|aiohttp|urllib\.request|net/http|http\.Client|reqwest)\b"
         r"|\bnew\s+WebSocket\s*\(|\bgraphql\s*\(")
 PERFORMANCE_SIGNALS = {
-    "database query": (_SQL + "|" + _ORM, CS),
-    "network call": (_NET, CS),
+    "database query": (_SQL + "|" + _ORM, CASE_SENSITIVE),
+    "network call": (_NET, CASE_SENSITIVE),
     "concurrency and resource limits": (
         r"\b(?:semaphores?|mutex(?:es)?|advisory_lock|withLock|acquireLock|p-limit|pLimit|p-queue|PQueue|bottleneck|max_?concurrent\w*|maxConcurrent\w*"
         r"|pool_?size|max_?connections|connection_?limit|connection_?timeout\w*|connectionTimeoutMillis|idle_?timeout\w*|idleTimeoutMillis"
         r"|rate[_ -]?limit\w*|throttl\w*|debounc\w*|backpressure|worker_threads|cluster\.fork|exec_mode|ThreadPoolExecutor|ProcessPoolExecutor"
-        r"|asyncio\.Semaphore|sync\.WaitGroup|errgroup|concurrency)\b|\bnew\s+(?:Worker|Pool)\s*\(|\bcreatePool\s*\(|\.lock\(\s*\)|\.acquire\(\s*\)", I),
+        r"|asyncio\.Semaphore|sync\.WaitGroup|errgroup|concurrency)\b|\bnew\s+(?:Worker|Pool)\s*\(|\bcreatePool\s*\(|\.lock\(\s*\)|\.acquire\(\s*\)", IGNORECASE),
     "parallel and batch work": (
         r"\bPromise\.(?:all|allSettled|race|any)\b|\bfor\s+await\b|\.(?:map|forEach|flatMap)\(\s*async\b|\basyncio\.gather\b"
-        r"|\b(?:batch_?size|chunk_?size)\b|\bbulk(?:Write|Insert|Create|Upsert)\b", I),
+        r"|\b(?:batch_?size|chunk_?size)\b|\bbulk(?:Write|Insert|Create|Upsert)\b", IGNORECASE),
     "caching": (
         r"\b(?:cache[sd]?|caching|memoi[sz]\w*|lru|lru_cache|LRUCache|ttl|ttl_?ms|stale-while-revalidate|cache-control|etag|invalidat\w+|unstable_cache)\b"
-        r"|(?<![\w@])@cache\b", I),
+        r"|(?<![\w@])@cache\b", IGNORECASE),
     "timeouts, retries and polling": (
         r"\b(?:timeouts?|timeout_?ms|deadline|retr(?:y|ies|ied|ying)|backoff|setInterval|poll(?:s|ing|ed|_?interval)?|long-?poll\w*|heartbeats?|keep-?alive)\b"
-        r"|\bAbortSignal\.timeout\b|\bnew\s+AbortController\b", I),
+        r"|\bAbortSignal\.timeout\b|\bnew\s+AbortController\b", IGNORECASE),
     "blocking call": (
         r"\b(?:readFileSync|writeFileSync|appendFileSync|existsSync|statSync|readdirSync|execSync|spawnSync|execFileSync|pbkdf2Sync|scryptSync"
         r"|randomFillSync|gzipSync|gunzipSync|deflateSync|inflateSync|brotliCompressSync|Atomics\.wait)\b|\btime\.sleep\s*\("
-        r"|\bwhile\s*\(\s*true\s*\)|\bwhile\s+True\b|\bfor\s*\(\s*;\s*;\s*\)", CS),
+        r"|\bwhile\s*\(\s*true\s*\)|\bwhile\s+True\b|\bfor\s*\(\s*;\s*;\s*\)", CASE_SENSITIVE),
     "large data and streaming": (
         r"\b(?:paginat\w*|pageSize|page_size|per_page|perPage|nextCursor|next_cursor|endCursor|pageInfo|createReadStream|createWriteStream"
         r"|ReadableStream|WritableStream|TransformStream|stream\.pipeline|Readable\.from|fetchall|iterrows|readlines)\b"
         r"|\b(?:LIMIT|OFFSET)\s+(?:\d+|\$\d+|\?|:\w+)|\bBuffer\.(?:alloc|concat)\b|\.(?:arrayBuffer|blob|toArray|readAll)\(\s*\)"
-        r"|\.(?:limit|offset|take|skip)\(\s*\d", CS),
+        r"|\.(?:limit|offset)\(\s*\d|\b(?:take|skip):\s*\d", CASE_SENSITIVE),
     "schema and indexes": (
         r"(?i:\bcreate\s+(?:unique\s+)?index\b|\bdrop\s+index\b|\badd_index\b|\breindex\b)|\b(?:VACUUM|PARTITION\s+BY|MATERIALIZED\s+VIEW|EXPLAIN)\b"
-        r"|@@index\b|(?<![\w@])@Index\b|\.index\(\s*\{", CS),
+        r"|@@index\b|(?<![\w@])@Index\b|\.index\(\s*\{", CASE_SENSITIVE),
     "frontend rendering and loading": (
         r"\b(?:useMemo|useTransition|useDeferredValue|useSyncExternalStore|startTransition|Suspense|requestAnimationFrame|requestIdleCallback"
         r"|IntersectionObserver|ResizeObserver|MutationObserver|fetchPriority|generateStaticParams|getServerSideProps|getStaticProps)\b"
         r"|\b(?:React\.)?memo\(|\b(?:React\.)?lazy\(\s*\(\)|next/dynamic|next/image|\bimport\(\s*['\"`]|loading=[\"']lazy"
         r"|rel=[\"'](?:preload|prefetch|preconnect)|addEventListener\(\s*['\"](?:scroll|resize|mousemove|pointermove|touchmove|wheel)['\"]"
-        r"|\bexport\s+const\s+(?:revalidate|dynamic)\s*=", CS),
+        r"|\bexport\s+const\s+(?:revalidate|dynamic)\s*=", CASE_SENSITIVE),
     "request and event handlers": (
         r"\b(?:app|router|server|fastify|hono|api)\.(?:get|post|put|patch|delete|all|use|route)\s*\(|(?<![\w@])@(?:app|router|api|bp|blueprint)\.(?:get|post|put|patch|delete|route|websocket)\b"
         r"|\bexport\s+(?:async\s+)?function\s+(?:GET|POST|PUT|PATCH|DELETE|middleware|loader|action)\b|\b(?:middleware|onRequest|handleRequest|[Ww]ebhooks?|cron|scheduler|consumer|onMessage)\b"
-        r"|\bqueue\.(?:add|process)\s*\(|addEventListener\(\s*['\"]fetch['\"]", CS),
+        r"|\bqueue\.(?:add|process)\s*\(|addEventListener\(\s*['\"]fetch['\"]", CASE_SENSITIVE),
 }
 MODULE_COLLECTION_JS = re.compile(r"^(?:export\s+)?(?:const|let|var)\s+\w+\s*(?::[^=]{1,120})?=\s*new\s+(?:Map|Set|WeakMap)\b")
 MODULE_COLLECTION_PY = re.compile(r"^[A-Za-z_]\w*\s*(?::\s*[\w\[\], |.]{1,120})?=\s*(?:\{\}|\[\]|dict\(\)|set\(\)|defaultdict\([^)]{0,80}\)|OrderedDict\(\))\s*(?:#.*)?$")
-LOOP_HEAD = re.compile(r"^\s*(?:for|while)\b|^\s*(?:do|loop)\s*\{|\.(?:forEach|map|flatMap)\(\s*(?:async\b|\(?[\w\s,{}]{0,80}\)?\s*=>\s*\{\s*$)")
+LOOP_HEAD = re.compile(r"^\s*(?:async\s+)?(?:for|while)\b|^\s*(?:do|loop)\s*\{|\.(?:forEach|map|flatMap)\(\s*(?:async\b|\(?[\w\s,{}]{0,80}\)?\s*=>\s*\{\s*$)")
 LOOP_COST = re.compile(_SQL + "|" + _ORM + "|" + _NET + r"|\bawait\b")
 LOOP_MAX = 40  # body lines followed after a loop header
 
@@ -210,15 +252,18 @@ COMPLEXITY_WIDE_FILES = 10    # source files with added lines
 COMPLEXITY_NESTING = 6        # indentation levels (in the file's own indent unit)
 COMPLEXITY_NESTED_LINES = 5   # added lines that deep in one file
 COMPLEXITY_LINES = re.compile(
-    r"(?<![\w.$])(?:eval|exec)\s*\(|\bnew\s+Function\s*\(|\b(?:setattr|__getattr__|metaclass|nonlocal)\b|\bglobal\s+\w+|\bmonkeypatch\w*"
-    r"|\bnew\s+Proxy\s*\(|@ts-ignore|@ts-nocheck|eslint-disable|#\s*type:\s*ignore|\bas\s+any\b|:\s*any\b(?![-\w])|\bFIXME\b|\bHACK\b")
+    r"(?<![\w.$])(?:eval|exec)\s*\(|\bnew\s+Function\s*\(|\b(?:setattr|__getattr__|metaclass)\b|\bmonkeypatch\w*"
+    r"|\bnew\s+Proxy\s*\(|@ts-ignore|@ts-nocheck|eslint-disable|#\s*type:\s*ignore|\bFIXME\b|\bHACK\b")
+COMMENT_LINE = re.compile(r"^\s*(?://|#|\*|/\*)")  # `any`/`global` in prose comments is not code
+TS_ANY = re.compile(r"(?:[:<,|(]|\bas)\s*any\s*(?:[,;)>=\]|&]|\[\]|$)")  # an `any` type, not any(...) or prose
+PY_GLOBAL = re.compile(r"^\s*(?:global|nonlocal)\s+\w+(?:\s*,\s*\w+)*\s*(?:#.*)?$")
 
 LANGUAGES = {
     "py": "Python", "ts": "JavaScript/TypeScript", "tsx": "JavaScript/TypeScript", "mts": "JavaScript/TypeScript",
     "cts": "JavaScript/TypeScript", "js": "JavaScript/TypeScript", "jsx": "JavaScript/TypeScript", "mjs": "JavaScript/TypeScript",
     "cjs": "JavaScript/TypeScript", "vue": "JavaScript/TypeScript", "svelte": "JavaScript/TypeScript", "astro": "JavaScript/TypeScript",
     "go": "Go", "rs": "Rust", "rb": "Ruby", "java": "Java", "kt": "Kotlin", "kts": "Kotlin", "swift": "Swift",
-    "php": "PHP", "cs": "C#", "c": "C", "h": "C", "cc": "C++", "cpp": "C++", "hpp": "C++", "scala": "Scala",
+    "php": "PHP", "cs": "C#", "c": "C/C++", "h": "C/C++", "cc": "C/C++", "cpp": "C/C++", "hpp": "C/C++", "scala": "Scala",
     "ex": "Elixir", "exs": "Elixir", "lua": "Lua", "dart": "Dart", "sh": "Shell", "bash": "Shell", "zsh": "Shell",
     "ps1": "PowerShell", "sql": "SQL", "prisma": "Prisma", "graphql": "GraphQL", "gql": "GraphQL",
     "css": "CSS", "scss": "CSS", "sass": "CSS", "less": "CSS", "tf": "Terraform", "hcl": "Terraform", "nix": "Nix",
@@ -229,9 +274,11 @@ MARKUP = re.compile(r"\.(?:tsx|jsx|vue|svelte|astro|html?)$", re.I)
 # test conventions NOT_CODE does not cover (Go/Python suffixes, e2e, mocks).
 SPECIALIST_SKIP = re.compile(
     r"(^|/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?|Cargo\.lock|poetry\.lock|Pipfile\.lock|uv\.lock"
-    r"|composer\.lock|Gemfile\.lock|go\.sum|flake\.lock)$|\.(min\.(js|css)|map|snap|lock|svg)$|(^|/)(dist|build|out|vendor|node_modules"
-    r"|__generated__|generated|\.next|testdata|__mocks__|__snapshots__|e2e|cypress|spec)/|\.generated\.|_pb2\.py$|\.pb\.go$"
-    r"|_test\.[a-z]+$|_spec\.rb$|(^|/)conftest\.py$", re.I)
+    r"|composer\.lock|Gemfile\.lock|go\.sum|flake\.lock)$|\.(min\.(js|css)|map|snap|lock|svg)$"
+    r"|(^|/)(vendor|node_modules|__generated__|testdata|__mocks__|__snapshots__|e2e|cypress)/"
+    r"|^((packages|apps|libs|services)/[^/]+/)?(dist|build|out|generated|\.next|spec)/"  # output dirs only at a repo or package root
+    r"|(^|/)(locales?|i18n|translations?|messages|lang)/|\.(po|pot|xlf|xliff|csv|tsv)$"  # translations and data
+    r"|\.generated\.|_pb2\.py$|\.pb\.go$|_test\.[a-z]+$|_spec\.rb$|(^|/)conftest\.py$", re.I)
 CI_PATH = re.compile(r"(^|/)\.github/(workflows|actions)/|\.gitlab-ci\.ya?ml$|(^|/)\.circleci/|(^|/)azure-pipelines|(^|/)action\.ya?ml$|(^|/)\.buildkite/", re.I)
 BUILD_CONFIG = re.compile(
     r"(^|/)(package\.json|tsconfig[^/]*\.json|jsconfig\.json|pyproject\.toml|setup\.(py|cfg)|requirements[^/]*\.txt|Cargo\.toml|go\.mod|Gemfile"
@@ -250,33 +297,36 @@ RUNTIME_LIMIT_PATHS = re.compile(
     r"(^|/)(ecosystem|pm2)[^/]*\.(c?js|json|ya?ml)$|(^|/)(k8s|kubernetes)/|(^|/)(helm|charts)/.*\.(ya?ml|tpl)$|(^|/)wrangler\.(toml|jsonc?)$"
     r"|(^|/)(next|vite|webpack|rollup)\.config\.", re.I)
 LANGUAGE_LINES = {
-    "shell": (r"^#!.*\b(?:ba|z|da|k)?sh\b|^\s*set\s+-[euxo]+\b|\bshell:\s*true\b|\bshell=True\b", CS),
+    "shell": (r"^#!.*\b(?:ba|z|da|k)?sh\b|^\s*set\s+-[euxo]+\b|\bshell:\s*true\b|\bshell=True\b", CASE_SENSITIVE),
     "regular expressions": (
         r"\bnew\s+RegExp\s*\(|\bre\.(?:compile|match|search|sub|subn|fullmatch|split|findall|finditer)\s*\(|\.(?:match|matchAll|replace|replaceAll|split|search)\(\s*/"
-        r"|/[^/\s]{1,200}/[dgimsuy]*\.(?:test|exec)\(|\bregexp\.\w+|\bRegex(?:::new)?\s*\(", CS),
+        r"|/[^/\s]{1,200}/[dgimsuy]*\.(?:test|exec)\(|\bregexp\.\w+|\bRegex(?:::new)?\s*\(", CASE_SENSITIVE),
     "dates, time zones and numbers": (
         r"\bnew\s+Date\s*\(\s*[^)\s]|\bDate\.(?:parse|UTC)\b|\.(?:getTimezoneOffset|toLocaleDateString|toLocaleTimeString|toLocaleString|setHours|setUTCHours|setDate)\s*\("
         r"|\bIntl\.(?:DateTimeFormat|NumberFormat|RelativeTimeFormat)\b|\b(?:timeZone|time_zone|dayjs|date-fns|luxon|zoneinfo|pytz|strptime|fromisoformat|utcnow"
-        r"|parseFloat|toFixed|toPrecision|BigInt|Decimal|centAmount|fractionDigits|EPSILON|MAX_SAFE_INTEGER)\b|\bmoment\(", CS),
+        r"|parseFloat|toFixed|toPrecision|BigInt|Decimal|centAmount|fractionDigits|EPSILON|MAX_SAFE_INTEGER)\b|\bmoment\(", CASE_SENSITIVE),
     "encoding and unicode": (
         r"\b(?:encodeURI(?:Component)?|decodeURI(?:Component)?|TextEncoder|TextDecoder|atob|btoa|base64|b64encode|b64decode|utf-?16|latin-?1|iso-8859-\d+"
         r"|localeCompare|casefold|codePointAt|charCodeAt|fromCharCode|fromCodePoint|toLocaleLowerCase|toLocaleUpperCase|Collator|punycode|unicodedata)\b"
-        r"|\.normalize\(\s*['\"]NF[CD]K?['\"]", I),
+        r"|\.normalize\(\s*['\"]NFK?[CD]['\"]", IGNORECASE),
     "async semantics": (
         r"\b(?:queueMicrotask|process\.nextTick|setImmediate|unhandledRejection|uncaughtException|AsyncLocalStorage|contextvars|run_in_executor"
         r"|asyncio\.(?:run|create_task|get_event_loop|new_event_loop|to_thread|shield|wait_for)|threading\.\w+|multiprocessing\.\w+|tokio::\w+"
-        r"|sync\.(?:Mutex|RWMutex|Once))\b", CS),
+        r"|sync\.(?:Mutex|RWMutex|Once))\b", CASE_SENSITIVE),
     "type system edges": (
         r"\bas\s+unknown\s+as\b|\binfer\s+[A-Z]\w*|\bdeclare\s+(?:module|global)\b|\b(?:TypeVar|ParamSpec|TypeVarTuple|TypedDict|TypeGuard|TypeIs)\b"
         r"|\bProtocol\[|(?<![\w@])@overload\b|\btyping\.cast\(|\bunsafe\s*\{|\bmem::transmute\b|\binterface\{\}|\breflect\.(?:TypeOf|ValueOf)\b"
-        r"|\bextends\s+[^?\n;{]{1,80}\?\s*[^:\n]{1,80}:", CS),
+        r"|\bextends\s+[^?\n;{]{1,80}\?\s*[^:\n]{1,80}:", CASE_SENSITIVE),
     "module system": (
         r"\b(?:createRequire|import\.meta|__dirname|__filename|require\.resolve|importlib|__all__|sys\.path|__future__)\b|\bexport\s+\*\s+from\b"
-        r"|\bimport\s+\w+\s*=\s*require\(|^\s*\"(?:exports|imports|main|module|browser)\"\s*:|^\s*\"type\"\s*:\s*\"(?:module|commonjs)\"", CS),
+        r"|\bimport\s+\w+\s*=\s*require\(", CASE_SENSITIVE),
     "error handling and resource cleanup": (
         r"\b(?:AggregateError|contextmanager|__enter__|__exit__|atexit|SIGTERM|SIGINT|SIGHUP|beforeExit)\b|\bSymbol\.(?:asyncDispose|dispose)\b"
-        r"|\bawait\s+using\b|\busing\s+\w+\s*=|\bdefer\s+\w|\brecover\(\)|\bpanic!?\(|\bsignal\.signal\(|\bprocess\.exit\(|\bprocess\.on\(\s*['\"](?:SIG\w+|exit|beforeExit)['\"]", CS),
+        r"|\bawait\s+using\b|\busing\s+(?:var\s+)?\w+\s*=|^\s*defer\s+(?:func\b|[\w.]+\()|\brecover\(\)|\bpanic!?\(|\bsignal\.signal\(|\bprocess\.exit\(|\bprocess\.on\(\s*['\"](?:SIG\w+|exit|beforeExit)['\"]", CASE_SENSITIVE),
 }
+# Module-format keys count only in package.json, not in translation or data JSON.
+PACKAGE_MODULE_KEYS = re.compile(r'^\s*"(?:exports|imports|main|module|browser)"\s*:|^\s*"type"\s*:\s*"(?:module|commonjs)"')
+PACKAGE_JSON = re.compile(r"(^|/)package\.json$")
 # Release metadata in package files (version bumps, release bots) is not a build change.
 PACKAGE_METADATA = re.compile(r'^\s*"?(?:version|name|description|author|license|homepage|repository|private|keywords|autoLastDeveloperCommit)"?\s*[:=]'
                               r'|^\s*[\[\]{}(),]*\s*$', re.I)
@@ -289,6 +339,9 @@ def _compile(table):
 
 PERFORMANCE_RX, LANGUAGE_RX = _compile(PERFORMANCE_SIGNALS), _compile(LANGUAGE_LINES)
 LANGUAGE_PATH_RX = {name: re.compile(p, re.I) for name, p in LANGUAGE_PATHS.items()}
+# Ruby line signals skip files whose keys only look like runtime work
+# (CI cache:/timeout-minutes:, Docker --no-cache and HEALTHCHECK --retries, styles, manifests).
+RUBY_LINE_SKIP = [CI_PATH, STYLE_PATH, BUILD_CONFIG, LANGUAGE_PATH_RX["container"]]
 
 
 def _language(path):
@@ -296,32 +349,49 @@ def _language(path):
     return LANGUAGES.get(name.rsplit(".", 1)[-1].lower()) if "." in name else None
 
 
+def _is_source(lang):
+    """Programming-language source (not styles, SQL, schemas or infrastructure data)."""
+    return bool(lang) and lang not in NOT_PROGRAMMING
+
+
 def _indent_levels(indents, seen=()):
     """Nesting levels of each (tabs, spaces) indent in the file's own unit: a tab is
-    one level; spaces count in the greatest common step of every indent seen in the
-    file (added and context lines), between 2 and 4."""
+    one level; spaces count in the greatest common step of the file's even indents
+    (added and context lines), between 2 and 4. Odd indents (JSDoc ' * ' lines,
+    aligned continuations) do not decide the unit."""
     unit = 0
     for _, n in list(indents) + list(seen):
-        unit = math.gcd(unit, n)
+        if n % 2 == 0:
+            unit = math.gcd(unit, n)
     unit = min(4, max(2, unit)) if unit else 4
     return [tabs + n // unit for tabs, n in indents]
 
 
-def compile_extra_signals(items, roles):
+def compile_extra_signals(items, roles, flag="--specialist-signal", form="ROLE:NAME=REGEX"):
     """Parse 'ROLE:NAME=REGEX' items into {role: {'repo: NAME': compiled}}; an
-    invalid item or regex exits with the item, before anything is scanned."""
+    invalid item or regex exits naming the flag and the item, before anything
+    is scanned."""
     out = {}
     for item in items:
         role, sep, rest = item.partition(":")
         name, sep2, pattern = rest.partition("=")
         role = role.strip().lower()
         if not (sep and sep2 and role in roles and name.strip() and pattern):
-            raise SystemExit(f"specialist signal must be ROLE:NAME=REGEX with ROLE in {sorted(roles)}: {item!r}")
+            raise SystemExit(f"{flag} must be {form}" + (f" with ROLE in {sorted(roles)}" if "ROLE" in form else "") + f": {item!r}")
         try:
             out.setdefault(role, {})[f"repo: {name.strip()}"] = re.compile(pattern, re.I)
-        except re.error as exc:
-            raise SystemExit(f"invalid regex in {item!r}: {exc}")
+        except (re.error, OverflowError, RecursionError) as exc:
+            raise SystemExit(f"{flag}: invalid regex in {item!r}: {exc}")
     return out
+
+
+def compile_security_signals(items):
+    """Parse --security-signal 'NAME=REGEX' items into {'repo: NAME': compiled}."""
+    for item in items:
+        if "=" not in item or not item.partition("=")[0].strip() or not item.partition("=")[2]:
+            raise SystemExit(f"--security-signal must be NAME=REGEX: {item!r}")
+    compiled = compile_extra_signals([f"remy:{item}" for item in items], {"remy"}, "--security-signal", "NAME=REGEX")
+    return compiled.get("remy", {})
 
 
 def specialist_signals(diff_text, extra=None):
@@ -329,8 +399,7 @@ def specialist_signals(diff_text, extra=None):
     {"ruby": {signal: [files]}, "oscar": {...}, "iris": {...}} (empty roles omitted).
     `extra` adds compiled repository signals as {"ruby": {"repo: name": regex}};
     they never replace a built-in signal."""
-    extra = {role: {(n if n.startswith("repo: ") else f"repo: {n}"): (rx if isinstance(rx, re.Pattern) else re.compile(rx, re.I))
-                    for n, rx in signals.items()} for role, signals in (extra or {}).items()}
+    extra = {role: _repo_signals(signals) for role, signals in (extra or {}).items()}
     found = {"ruby": {}, "oscar": {}, "iris": {}}
     added, new_files, indents, seen_indents, config_pending = {}, set(), {}, {}, {}
     loop = None  # (path, header indent, lines left) while inside a loop body
@@ -339,12 +408,17 @@ def specialist_signals(diff_text, extra=None):
         found[role].setdefault(name, set()).add(path)
 
     for kind, path, text in diff_events(diff_text):
-        if NOT_CODE.search(path) or SPECIALIST_SKIP.search(path):
+        if (NOT_CODE.search(path) and not BUILD_CONFIG.search(path)) or SPECIALIST_SKIP.search(path):
+            continue
+        if kind == "hunk":
+            loop = None
             continue
         if kind == "file":
             loop = None
             if text == "new":
                 new_files.add(path)
+            if text == "deleted":
+                continue  # removing a migration or Dockerfile needs no specialist
             for name, rx in LANGUAGE_PATH_RX.items():
                 if rx.search(path):
                     hit("iris", name, path)
@@ -359,7 +433,8 @@ def specialist_signals(diff_text, extra=None):
             hit("iris", "build and package config", path)
             config_pending[path] = False
         stripped = text.lstrip(" \t")
-        indent = (len(text) - len(text.lstrip("\t")), len(text.lstrip("\t")) - len(text.lstrip("\t").lstrip(" ")))
+        body = text.lstrip("\t")
+        indent = (len(text) - len(body), len(body) - len(body.lstrip(" ")))
         width = indent[0] * 4 + indent[1]
         if kind == "del":
             continue
@@ -379,7 +454,7 @@ def specialist_signals(diff_text, extra=None):
         lang = _language(path)
         if stripped:
             indents.setdefault(path, []).append(indent)
-        if not (CI_PATH.search(path) or STYLE_PATH.search(path) or BUILD_CONFIG.search(path)):
+        if not any(rx.search(path) for rx in RUBY_LINE_SKIP):
             for name, rx in PERFORMANCE_RX.items():
                 if rx.search(text):
                     hit("ruby", name, path)
@@ -392,14 +467,17 @@ def specialist_signals(diff_text, extra=None):
         for name, rx in LANGUAGE_RX.items():
             if rx.search(text):
                 hit("iris", name, path)
-        if COMPLEXITY_LINES.search(text) and lang:
+        if PACKAGE_JSON.search(path) and PACKAGE_MODULE_KEYS.search(text):
+            hit("iris", "module system", path)
+        if _is_source(lang) and (COMPLEXITY_LINES.search(text) or (lang == "JavaScript/TypeScript" and TS_ANY.search(text) and not COMMENT_LINE.match(text))
+                                 or (lang == "Python" and PY_GLOBAL.search(text))):
             hit("oscar", "escape hatches and dynamic code", path)
         for role, signals in extra.items():
             for name, rx in signals.items():
                 if rx.search(text):
                     hit(role, name, path)
 
-    source = {p: n for p, n in added.items() if _language(p) and _language(p) not in NOT_PROGRAMMING}
+    source = {p: n for p, n in added.items() if _is_source(_language(p))}
     for path, count in source.items():
         if count >= COMPLEXITY_FILE_LINES:
             hit("oscar", f"large change (≥{COMPLEXITY_FILE_LINES} added lines in a file)", path)
@@ -429,6 +507,24 @@ def git(repo, *args, check=True):
     if check and proc.returncode != 0:
         raise SystemExit(f"git {' '.join(args)} failed: {proc.stderr.strip()}")
     return proc.stdout
+
+
+# Diffs are read as bytes, without newline translation (a lone CR must not add a
+# line the hunk header does not count) and with fixed output whatever the user's
+# git config says about colour, external diff tools, prefixes or path quoting.
+DIFF_ARGS = ("-c", "core.quotePath=true", "diff", "--no-color", "--no-ext-diff", "--src-prefix=a/", "--dst-prefix=b/", "--find-renames")
+
+
+def git_diff(repo, *revs):
+    proc = subprocess.run(["git", "-C", repo, *DIFF_ARGS, *revs], capture_output=True)
+    if proc.returncode != 0:
+        raise SystemExit(f"git diff {' '.join(revs)} failed: {proc.stderr.decode('utf-8', 'replace').strip()}")
+    return proc.stdout.decode("utf-8", "replace")
+
+
+def read_diff(path):
+    with open(path, encoding="utf-8", errors="replace", newline="") as fh:
+        return fh.read()
 
 
 def table_rows(path):
@@ -584,14 +680,14 @@ def main(argv=None):
     out = args.out or os.path.join(git(repo, "rev-parse", "--absolute-git-dir").strip(), "pr-shepherd-review", head[:12])
     os.makedirs(os.path.join(out, "prompts"), exist_ok=True)
     diff_path = os.path.join(out, "diff.patch")
-    with open(diff_path, "w") as fh:
-        fh.write(git(repo, "diff", "--find-renames", merge_base, head))
+    with open(diff_path, "w", encoding="utf-8", newline="") as fh:
+        fh.write(git_diff(repo, merge_base, head))
     files = [l.split("\t")[-1] for l in git(repo, "diff", "--name-status", "--find-renames", merge_base, head).splitlines() if l]
     fix_diff = None
     if args.previous_head:
         fix_diff = os.path.join(out, "fix-diff.patch")
-        with open(fix_diff, "w") as fh:
-            fh.write(git(repo, "diff", "--find-renames", args.previous_head, head))
+        with open(fix_diff, "w", encoding="utf-8", newline="") as fh:
+            fh.write(git_diff(repo, args.previous_head, head))
 
     roles_info, matrix = load_roles(), load_matrix(args.runtime)
     wanted = [r.strip().lower() for r in args.roles.split(",") if r.strip()]
@@ -602,14 +698,12 @@ def main(argv=None):
     # Specialists follow signals in the change under review: the whole PR, or for
     # a fix check the changes since the reviewed head. A detected one is added.
     extra_specialist = compile_extra_signals(args.specialist_signal, SPECIALISTS)
-    routed_diff = open(fix_diff if fix_diff else diff_path, encoding="utf-8").read()
+    routed_diff = read_diff(fix_diff if fix_diff else diff_path)
     specialists = {role: {"signals": found, "added": role not in wanted}
                    for role, found in specialist_signals(routed_diff, extra_specialist).items()}
     wanted += [role for role, info in specialists.items() if info["added"]]
 
-    extra = {name[len("repo: "):]: rx for name, rx in
-             compile_extra_signals([f"remy:{item}" for item in args.security_signal], {"remy"}).get("remy", {}).items()}
-    tier, signals = security_tier(open(diff_path, encoding="utf-8").read(), extra)
+    tier, signals = security_tier(read_diff(diff_path), compile_security_signals(args.security_signal))
     criteria = args.criteria or ""
     if criteria and os.path.isfile(criteria):
         criteria = open(criteria, encoding="utf-8").read().strip()

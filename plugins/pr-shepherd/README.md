@@ -47,7 +47,8 @@ A plain request that asks for this workflow also triggers it.
    | Nora | runtime types and validation at boundaries |
    | Jasper | comments versus actual behavior |
    | Felix | an independent second review that doesn't see the others' findings |
-   | Remy, Ruby, Oscar, Iris | security, performance, code quality, language specifics, added automatically when signals in the diff call for them |
+   | Remy | security; the stronger Remy+ model when signals in the diff touch auth, secrets, payments or other sensitive areas |
+   | Ruby, Oscar, Iris | performance, code quality, language specifics, added automatically when signals in the diff call for them |
    | Vera, Otis, Milo, Luna, Zoe, Cleo | verify findings, check facts and reachability, reconcile conflicting findings |
 
    Basic, Standard and Deep tiers decide which roles run. Each prompt names the

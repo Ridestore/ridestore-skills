@@ -7,14 +7,18 @@
   when changed code or config has a signal for it and records the matches in the
   manifest (`specialists`) and `self-check.md`
   ([routing](skills/pr-shepherd/references/roles.md#routing)). Docs, tests,
-  fixtures, lockfiles, generated output and release metadata are ignored, and a
-  fix check routes on the changes since the reviewed head.
+  fixtures, lockfiles, generated output, translations and release metadata are
+  ignored, and a fix check routes on the changes since the reviewed head.
   `--specialist-signal ROLE:NAME=REGEX` adds repository signals. Same for every
   runtime.
 - The packet's diff reader counts hunk lengths, so a content line starting with
   `++ ` no longer hides the rest of a file from security or specialist signals;
-  file names with spaces or non-ASCII characters keep their path; lines are
-  scanned up to 2,000 characters, so a minified line cannot stall the script.
+  file names with spaces or non-ASCII characters keep their path, and renames
+  and binary files count by path. Diffs are read as bytes with fixed git output
+  (no colour, external diff tool or custom prefixes), so a lone carriage return
+  or the user's git config cannot shift hunks. Specialist signals scan lines up
+  to 2,000 characters and every pattern is bounded, so a minified line cannot
+  stall the script; security signals still scan whole lines.
 - Repository signals (`--security-signal` and `--specialist-signal`) are
   recorded as `repo: NAME`: they add to the built-in signals and can no longer
   replace or switch one off. An invalid regex stops with the offending item.
