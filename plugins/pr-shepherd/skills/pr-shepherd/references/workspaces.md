@@ -14,6 +14,10 @@ the manager is required but fails; diagnose it with the manager's own tools and
 the workspace's recovery rules. Never edit or switch the canonical checkout. No
 registry is fabricated when none is configured.
 
+If `task-workspaces` is available (possibly listed as
+`task-workspaces:task-workspaces`), read its SKILL.md and follow
+its instructions for workspace setup and lifecycle.
+
 Without a manager, reuse a verified task checkout or create an
 isolated tree using the host's supported workflow (for example Claude Code or
 Codex worktrees). Never switch the branch of a checkout another task may be using.
