@@ -24,6 +24,8 @@
 - The installer removes its own retired files (old `opus-reviewer` and xhigh Claude links,
   `pr-shepherd-astra`, `pr-shepherd-sol-medium`, `pr-shepherd-luna-xhigh`) and
   leaves anything it did not create.
+- Workspaces: no hard-coded manager commands or links; if a workspace-manager
+  skill is installed, the skill loads it and follows its instructions.
 - `review_packet.py` writes a per-role `label` ("Security review"); name
   reviewer calls by what they check.
 
