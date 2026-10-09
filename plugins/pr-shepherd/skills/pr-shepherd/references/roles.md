@@ -59,49 +59,54 @@ CSRF, gateways), secrets and crypto (secrets, API/private keys, encryption,
 password hashing, KMS), infra permissions (workflow `permissions:`/`secrets.`,
 IAM, Dockerfile `USER`, security groups), production commerce APIs (the
 commercetools SDK or API), payments (Stripe, Adyen, Klarna, PayPal, payment
-intents/methods/providers, refunds), personal data where it is stored or
-queried (email, phone, address, birth date in migrations, schemas, models or
-SQL/ORM writes), or when security-relevant changes span two or more top-level
-packages. Repository instructions can add their own production API clients as
-`--security-signal NAME=REGEX`. Otherwise routine Remy (input validation,
-sanitization or injection checks in one component, dependency bumps, sensitive
-logging). When unsure, use Remy+. The coordinator may raise routine to Remy+
-with a stated reason, never lower a detected Remy+, and names the decision and
-its matches in the plan and the PR body.
+intents/methods/providers, refunds), personal data where it is stored or queried
+(email, phone, address, birth date in migrations, schemas, models or SQL/ORM
+writes), or when security-relevant changes span two or more top-level packages.
+Repository instructions can add their own production API clients as
+`--security-signal NAME=REGEX` (recorded as `repo: NAME`; it adds, never
+replaces). Otherwise routine Remy (input validation, sanitization or injection
+checks in one component, dependency bumps, sensitive logging). When unsure, use
+Remy+. The coordinator may raise routine to Remy+ with a stated reason, never
+lower a detected Remy+, and names the decision and its matches in the plan and
+the PR body.
 
 **Ruby, Oscar and Iris are also routed by signals, not by judgement.**
 `review_packet.py` adds each one to the plan when the change under review (the
 whole PR, or for a fix check the changes since the reviewed head) has a signal
 for it in changed code or config, and records the matches in the manifest and
-`self-check.md`. Docs, tests and fixtures are ignored, as for Remy.
+`self-check.md`. Docs, tests, fixtures, lockfiles, generated or vendored output
+and snapshots are ignored.
 
-- **Ruby (performance):** database queries and ORM calls, network calls, a
-  query, call or `await` inside a loop, request/webhook/cron/queue handlers,
-  pools, semaphores, locks, concurrency and rate limits, `Promise.all` and batch
-  work, caches and TTLs, timeouts, retries and polling, blocking sync calls,
-  module-level `Map`/`Set`/dict collections, pagination, streams and large
-  buffers, migrations and indexes, frontend render and loading work
-  (`useEffect`/`useMemo`, dynamic imports, observers, scroll listeners), and
-  runtime/build limits (PM2, Kubernetes, Wrangler, bundler config).
-- **Oscar (code quality):** 150+ added lines in one code file, a new file of
-  300+ lines, 400+ added code lines in total, 10+ code files, five or more added
-  lines nested six levels deep (eight in markup), and escape hatches (`eval`,
-  `as any`, `@ts-ignore`, lint or type-check suppressions, FIXME/HACK).
+- **Ruby (performance):** SQL and ORM calls, network calls, a query, call or
+  `await` inside a loop body, request/webhook/cron/queue handlers, pools,
+  semaphores, locks, concurrency and rate limits, `Promise.all` and batch work,
+  caches and TTLs, timeouts, retries and polling, blocking sync calls,
+  module-level `Map`/`Set`/dict collections, pagination, streams and buffered
+  bodies, migrations and indexes, frontend render and loading work (`useMemo`,
+  `memo`, dynamic imports, observers, scroll listeners) and runtime/build limits
+  (PM2, Kubernetes, Wrangler, bundler config). CI workflows, styles and package
+  manifests are left to Iris.
+- **Oscar (code quality):** in source files, 150+ added lines in one file, a new
+  file of 300+ lines, 400+ added lines in total, 10+ files, five or more added
+  lines six levels deep in the file's own indent unit (eight in markup), and
+  escape hatches (`eval`/`exec` calls, `as any`, `@ts-ignore`, lint or type-check
+  suppressions, `global`, FIXME/HACK).
 - **Iris (language):** shell scripts, SQL and Prisma, Dockerfiles and compose,
   CI workflows, infrastructure code, build and package config (not release
-  version bumps), styles, regular expressions, dates, time zones and money
-  arithmetic, encoding and Unicode, async runtime semantics, advanced type-system
-  constructs, module-system edges, signal handling and resource disposal, and a
-  diff in two or more programming languages (JavaScript and TypeScript count as
-  one).
+  metadata such as `version`), styles, regular expressions, dates, time zones
+  and money arithmetic, encoding and Unicode, async runtime semantics, advanced
+  type-system constructs, module-system edges (`import.meta`, `createRequire`,
+  `exports` maps), signal handling and resource disposal, and added lines in two
+  or more programming languages (JavaScript and TypeScript count as one).
 
 Repository instructions can add their own as `--specialist-signal
-ROLE:NAME=REGEX` (for example a hot internal client for Ruby). The coordinator
-may add a specialist with a stated reason, never drop a signalled one, and names
-the decision and its matches in the plan and the PR body. Do not run
-specialists without a signal or reason only to fill a matrix. Downstream review settings and the optional
-attestation label never lower this profile. Maya and Felix are always distinct
-first-pass calls.
+ROLE:NAME=REGEX` (for example a hot internal client for Ruby); they are recorded
+as `repo: NAME` and add to the built-in signals, never replace one. The
+coordinator may add a specialist with a stated reason, never drop a signalled
+one, and names the decision and its matches in the plan and the PR body. Do not
+run specialists without a signal or reason only to fill a matrix. Downstream
+review settings and the optional attestation label never lower this profile.
+Maya and Felix are always distinct first-pass calls.
 
 **When findings exist,** run one evidence agent covering Vera, Otis and Milo
 (and Luna for null/initialization findings); its output names each check
