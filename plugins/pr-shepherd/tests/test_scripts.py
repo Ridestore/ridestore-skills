@@ -58,7 +58,7 @@ class ReviewPacketTest(unittest.TestCase):
         manifest = json.load(open(os.path.join(out, "manifest.json")))
         self.assertEqual(manifest["files"], ["src/a.py"])
         self.assertEqual(manifest["instructions"], ["AGENTS.md"])
-        self.assertEqual(manifest["roles"]["maya"]["definition"], "opus-reviewer")
+        self.assertEqual(manifest["roles"]["maya"]["definition"], "opus-reviewer-medium")
         self.assertIn("+EFFORT = 'high'", open(os.path.join(out, "diff.patch")).read())
         maya = open(os.path.join(out, "prompts", "maya.md")).read()
         self.assertIn(manifest["head"], maya)
