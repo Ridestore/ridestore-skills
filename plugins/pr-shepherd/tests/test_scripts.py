@@ -249,6 +249,12 @@ class DshInstallTest(unittest.TestCase):
         self.assertTrue(text.endswith("# <<< pr-shepherd <<<\n- id: hmr\n"))
         self.assertNotIn("- insert: []", text)
 
+    def test_new_home_patch_gets_normal_file_mode(self):
+        self.assertEqual(self.run_install()[1], "patched")
+        umask = os.umask(0)
+        os.umask(umask)
+        self.assertEqual(os.stat(self.patch).st_mode & 0o777, 0o666 & ~umask)
+
     def test_end_marker_at_end_of_file_without_newline(self):
         write(self.patch, "- id: hmr\n# >>> pr-shepherd (managed by install.py) >>>\n- insert: []\n# <<< pr-shepherd <<<")
         self.assertEqual(self.run_install()[:2], (0, "patched"))
@@ -260,7 +266,7 @@ class DshInstallTest(unittest.TestCase):
         with open(self.patch, newline="") as fh:
             text = fh.read()
         self.assertTrue(text.startswith("- id: hmr\r\n  disabled: true\r\n# >>> pr-shepherd"))
-        override = text + "- id: pr-shepherd-flash\r\n  config:\r\n    toolName: pr_shepherd_flash\r\n"
+        override = text + "- id: pr-shepherd-flash  # tuned\r\n  config:\r\n    toolName: pr_shepherd_flash\r\n"
         with open(self.patch, "w", newline="") as fh:
             fh.write(override)
         self.assertEqual(self.run_install()[:2], (0, "patched"))
@@ -274,7 +280,7 @@ class DshInstallTest(unittest.TestCase):
             self.assertEqual(open(self.patch).read(), content)
 
 
-class RetiredOpenCodeAgentTest(unittest.TestCase):
+class RetiredAgentTest(unittest.TestCase):
     def test_removes_retired_claude_xhigh_links(self):
         home = tempfile.mkdtemp()
         agents = os.path.join(home, "a")
@@ -286,6 +292,12 @@ class RetiredOpenCodeAgentTest(unittest.TestCase):
                        capture_output=True, check=True)
         self.assertFalse(os.path.lexists(dest))
         self.assertTrue(os.path.islink(os.path.join(agents, "sonnet-reviewer-medium.md")))
+        # A user's own Claude agent is kept even if it carries the managed-copy marker.
+        write(dest, "---\n# pr-shepherd-managed-copy (deepseek)\nname: mine\n---\n")
+        subprocess.run([sys.executable, os.path.join(SCRIPTS, "install.py"), "--install", "--codex-root",
+                        os.path.join(home, "c"), "--claude-root", os.path.join(home, "d"), "--claude-agents-root", agents],
+                       capture_output=True, check=True)
+        self.assertTrue(os.path.isfile(dest))
 
     def test_removes_only_our_retired_astra_agent(self):
         home = tempfile.mkdtemp()

@@ -67,7 +67,19 @@ DSH_END = "# <<< pr-shepherd <<<"
 DSH_ROW = re.compile(r"""\bid:\s*["']?pr-shepherd-|\btoolName:\s*["']?pr_shepherd_""")
 # A top-level `- id: pr-shepherd-…` item outside the block overrides fields of our
 # row (dsh patches rows by id), which is supported.
-DSH_OVERRIDE = re.compile(r"""-\s+id:\s*["']?pr-shepherd-[a-z0-9-]+["']?\s*\n""")
+DSH_OVERRIDE = re.compile(r"""-\s+id:\s*["']?pr-shepherd-[a-z0-9-]+["']?[ \t]*(#[^\n]*)?\r?\n""")
+
+
+def ours_retired(dest, agents_dir, copies_here):
+    """A retired file this installer created: a link into the package's agent
+    directory (even if dangling), or, where it writes copies, a copy whose second
+    line is our marker."""
+    if dest.is_symlink():
+        return Path(os.path.join(dest.parent, os.readlink(dest))).parent.resolve() == agents_dir
+    if copies_here and dest.is_file():
+        lines = dest.read_text().splitlines()
+        return len(lines) > 1 and lines[0] == "---" and lines[1].startswith(MANAGED_COPY + " (")
+    return False
 
 
 def read_exact(path):
@@ -137,6 +149,10 @@ def replace_file(dest, text, expected):
             os.fsync(fh.fileno())
         if dest.exists():
             shutil.copymode(dest, tmp)
+        else:
+            umask = os.umask(0)
+            os.umask(umask)
+            os.chmod(tmp, 0o666 & ~umask)
         os.replace(tmp, dest)
     except BaseException:
         if os.path.exists(tmp):
@@ -213,16 +229,16 @@ def main():
         targets.append((dsh_home / "skills", "pr-shepherd", source))
         records.append(dsh_patch_record(dsh_home / "cordis.patch.yml",
                                         (source / "agents" / "dsh" / "cordis.patch.yml").read_text()))
-    retired = [(args.claude_agents_root, source / "agents", RETIRED_CLAUDE_AGENTS)]
+    # (root, source dir its links point into, retired names, whether managed copies live there)
+    retired = [(args.claude_agents_root, source / "agents", RETIRED_CLAUDE_AGENTS, False)]
     if args.opencode_root:
-        retired.append((args.opencode_root, source / "agents" / "opencode", RETIRED_OPENCODE_AGENTS))
-    for root, agents_dir, names in retired:
+        retired.append((args.opencode_root, source / "agents" / "opencode", RETIRED_OPENCODE_AGENTS, True))
+    for root, agents_dir, names, copies_here in retired:
         for name in names:
             dest = root.expanduser().absolute() / name
-            link = dest.is_symlink() and Path(os.path.join(dest.parent, os.readlink(dest))).parent.resolve() == agents_dir
-            copy = dest.is_file() and not dest.is_symlink() and MANAGED_COPY in dest.read_text()
-            if link or copy:
-                records.append({"path": str(dest), "expected_target": "retired agent, removed", "status": "stale"})
+            if ours_retired(dest, agents_dir, copies_here):
+                records.append({"path": str(dest), "expected_target": "retired agent, removed", "status": "stale",
+                                "_agents_dir": str(agents_dir), "_copies": copies_here})
     for dest, agent, text in copies:
         exists = dest.exists() or dest.is_symlink()
         ours = (dest.is_symlink() and dest.resolve() == agent) or (dest.is_file() and not dest.is_symlink() and MANAGED_COPY in dest.read_text())
@@ -258,7 +274,10 @@ def main():
             if r["status"] == "stale":
                 r["action"] = "remove"
                 if args.install:
-                    Path(r["path"]).unlink()
+                    dest = Path(r["path"])
+                    if not ours_retired(dest, Path(r["_agents_dir"]), r["_copies"]):
+                        raise ValueError(f"{dest} changed while installing; nothing removed, run again")
+                    dest.unlink()
                     r["status"] = "removed"
                 continue
             if r["status"] == "outdated" or (r["status"] == "missing" and r.get("expected_target", "").startswith("managed block")):
@@ -291,6 +310,8 @@ def main():
     for r in records:
         r.pop("_text", None)
         r.pop("_current", None)
+        r.pop("_agents_dir", None)
+        r.pop("_copies", None)
     print(json.dumps(report, indent=2))
     return code
 

@@ -47,7 +47,8 @@ python3 scripts/install.py --install --dsh-home ~/.dsh
   included) is kept, and the file is replaced atomically. The installer refuses a
   file that is not a YAML block list at column 0, or that already inserts these
   rows or tool names outside the block. Overriding a managed row by id after the
-  block (`- id: pr-shepherd-flash` with `disabled: true`, say) is allowed.
+  block (`- id: pr-shepherd-flash` on its own line, then `disabled: true`) is
+  allowed; flow-style rows (`- {id: …}`) are treated as copies.
 - The home patch applies to every profile, so both tools appear in every dsh
   session, not only pr-shepherd runs.
 - The installer does not read `$DSH_HOME`; if you set it, pass
