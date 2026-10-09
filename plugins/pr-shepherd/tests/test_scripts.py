@@ -149,7 +149,7 @@ class ReviewPacketTest(unittest.TestCase):
         # A release bump in package.json is not a build change.
         self.assertEqual(spec('+++ b/web/package.json\n+  "version": "0.3.598",\n+  "autoLastDeveloperCommit": "abc",\n'), {})
         self.assertIn("build and package config", spec('+++ b/web/package.json\n+    "zod": "^4.1.0",\n')["iris"])
-        # A template literal is not shell parameter expansion.
+        # A template literal routes nothing.
         self.assertEqual(spec("+++ b/src/url.ts\n+const u = `${base}/${path}`\n"), {})
 
     def test_complexity_signals_require_oscar(self):
@@ -180,7 +180,8 @@ class ReviewPacketTest(unittest.TestCase):
         self.assertEqual(spec("+++ b/src/a.ts\n+x = 1\n+++ b/src/b.js\n+y = 2\n"), {})
         self.assertEqual(spec("+++ b/src/a.h\n+int x;\n+++ b/src/a.cpp\n+int y;\n"), {})
 
-    # One added line per documented signal; each must route its role.
+    # One added line per documented line signal; each must route its role. Path
+    # signals are in PATH_CASES, and every built-in signal name must have a case.
     SIGNAL_CASES = [
         ("ruby", "database query", "src/a.ts", "const r = await db.query('SELECT id FROM runs WHERE repo = $1', [repo])"),
         ("ruby", "network call", "src/a.py", "resp = requests.get(url, timeout=5)"),
@@ -199,6 +200,11 @@ class ReviewPacketTest(unittest.TestCase):
         ("ruby", "module-level collection", "src/a.ts", "const seen = new Map<string, number>();"),
         ("ruby", "module-level collection", "src/a.py", "REGISTRY = defaultdict(list)"),
         ("oscar", "escape hatches and dynamic code", "src/a.ts", "const x = y as any"),
+        ("oscar", "escape hatches and dynamic code", "src/a.ts", "const u = data as any as User;"),
+        ("oscar", "escape hatches and dynamic code", "src/a.ts", "type Props = { cb: any }"),
+        ("oscar", "escape hatches and dynamic code", "src/a.ts", "x as any // legacy"),
+        ("oscar", "escape hatches and dynamic code", "src/a.ts", "export function load(): any {"),
+        ("iris", "error handling and resource cleanup", "src/a.cs", "using (var conn = new SqlConnection(cs)) {"),
         ("oscar", "escape hatches and dynamic code", "src/a.py", "    global counter"),
         ("iris", "shell", "bin/run", "#!/usr/bin/env bash"),
         ("iris", "regular expressions", "src/a.py", "PAT = re.compile(r'x+')"),
@@ -213,6 +219,25 @@ class ReviewPacketTest(unittest.TestCase):
         ("iris", "module system", "src/a.mjs", "const here = import.meta.url"),
         ("iris", "error handling and resource cleanup", "src/a.ts", "process.on('SIGTERM', shutdown)"),
     ]
+    PATH_CASES = [
+        ("ruby", "schema and indexes", "db/migrations/014_idx.sql"),
+        ("ruby", "runtime and build limits", "wrangler.toml"),
+        ("iris", "shell", "scripts/deploy.sh"),
+        ("iris", "sql", "prisma/schema.prisma"),
+        ("iris", "container", "Dockerfile"),
+        ("iris", "ci and automation yaml", ".github/workflows/ci.yml"),
+        ("iris", "infrastructure code", "infra/main.tf"),
+        ("iris", "styles", "web/app.scss"),
+    ]
+
+    def test_every_documented_path_signal_routes_its_role(self):
+        for role, name, path in self.PATH_CASES:
+            with self.subTest(signal=name, path=path):
+                self.assertIn(name, review_packet.specialist_signals(f"+++ b/{path}\n+x\n").get(role, {}))
+        covered = {name for _, name, *_ in self.SIGNAL_CASES + self.PATH_CASES}
+        builtin = set(review_packet.PERFORMANCE_SIGNALS) | set(review_packet.LANGUAGE_LINES) | set(review_packet.LANGUAGE_PATHS)
+        self.assertEqual(builtin - covered, set())
+
     # Ordinary lines the reviewers named; none may route a specialist.
     ORDINARY = [
         ("web/Button.tsx", '<button className="cursor-pointer ring-offset-2">'),
@@ -236,6 +261,8 @@ class ReviewPacketTest(unittest.TestCase):
         ("src/main.rs", "let rest: Vec<_> = std::env::args().skip(1).collect();"),
         ("web/index.html", '<script defer src="/a.js"></script>'),
         ("src/a.ts", "// treat as any other request"),
+        ("src/a.ts", "const note = 'pick any of these'"),
+        ("src/a.cs", "using Json = System.Text.Json;"),
     ]
 
     def test_every_documented_signal_routes_its_role(self):
@@ -255,6 +282,10 @@ class ReviewPacketTest(unittest.TestCase):
         name = "query, call or await inside a loop"
         self.assertIn(name, spec(hunk("for (const r of repos) {", "  await save(r)", "}")).get("ruby", {}))
         self.assertIn(name, spec(hunk("ids.forEach(async (id) => {", "  await fetch(url + id)", "})")).get("ruby", {}))
+        php = "+++ b/src/a.php\n@@ -0,0 +1,3 @@\n+foreach ($ids as $id) {\n+    $rows[] = $pdo->query($sql);\n+}\n"
+        self.assertIn(name, spec(php).get("ruby", {}))
+        rb = "+++ b/app/a.rb\n@@ -0,0 +1,3 @@\n+ids.each do |id|\n+  Net::HTTP.get(uri)\n+end\n"
+        self.assertIn(name, spec(rb.replace("Net::HTTP.get(uri)", "rows << db.execute(sql)")).get("ruby", {}))
         # After the loop has closed, or after a one-line .map, an await is sequential code.
         self.assertNotIn(name, spec(hunk("const ids = rows.map(r => r.id)", "await save(ids)")).get("ruby", {}))
         self.assertNotIn(name, spec(hunk("for (const x of xs) { total += x }", "const r = await load()")).get("ruby", {}))
@@ -327,8 +358,16 @@ class ReviewPacketTest(unittest.TestCase):
         renamed = ("diff --git a/api/x.ts b/auth/session.ts\nsimilarity index 100%\n"
                    "rename from api/x.ts\nrename to auth/session.ts\n")
         self.assertEqual(tier(renamed)[0], "remy+")
-        binary = "diff --git a/Dockerfile.png b/Dockerfile\nnew file mode 100644\nBinary files /dev/null and b/Dockerfile differ\n"
+        binary = "diff --git a/Dockerfile b/Dockerfile\nnew file mode 100644\nBinary files /dev/null and b/Dockerfile differ\n"
         self.assertIn("container", spec(binary)["iris"])
+        spaced = "diff --git a/auth b/key.png b/auth b/key.png\nBinary files a/auth b/key.png and b/auth b/key.png differ\n"
+        self.assertIn("auth b/key.png", tier(spaced)[1].get("authentication", []))
+        quoted = ('diff --git a/x.ts "b/auth/s\\303\\251ssion.ts"\nsimilarity index 100%\n'
+                  'rename from x.ts\nrename to "auth/s\\303\\251ssion.ts"\n')
+        self.assertEqual(tier(quoted)[1]["authentication"], ["auth/séssion.ts"])
+        # Pasted diffs without 'diff --git': a new file does not make the next one new.
+        pasted = "--- /dev/null\n+++ b/a.py\n+x = 1\n--- a/b.py\n+++ b/b.py\n" + "".join(f"+y{i} = {i}\n" for i in range(300))
+        self.assertFalse(any(n.startswith("large new file") for n in spec(pasted).get("oscar", {})))
 
     def test_container_ci_and_prose_lines_route_no_ruby_or_oscar(self):
         spec = review_packet.specialist_signals
@@ -351,6 +390,11 @@ class ReviewPacketTest(unittest.TestCase):
         self.assertIn("module system", spec('+++ b/package.json\n+  "exports": {\n')["iris"])
         self.assertEqual(spec('+++ b/locales/en.json\n+  "main": "Main menu",\n'), {})
         self.assertIn("build and package config", spec("+++ b/requirements.txt\n+httpx==0.28.1\n")["iris"])
+        for path in ("docs/requirements.txt", "tests/fixtures/app/package.json", "src/generated/graphql.ts",
+                     "engines/billing/spec/support/api.rb", "src/i18n/de.json"):
+            with self.subTest(path=path):
+                self.assertEqual(spec(f"+++ b/{path}\n+  \"zod\": \"^4\", x = await fetch(url)\n"), {})
+        self.assertIn("dates, time zones and numbers", spec("+++ b/src/i18n/format.ts\n+const f = new Intl.NumberFormat(l)\n")["iris"])
         # Output dirs are skipped only at a repo or package root.
         self.assertEqual(spec("+++ b/packages/web/dist/app.js\n+fetch(url)\n"), {})
         self.assertIn("ruby", spec("+++ b/tools/build/bundle.ts\n+await fetch(url)\n"))
@@ -366,6 +410,20 @@ class ReviewPacketTest(unittest.TestCase):
         self.assertIn("query, call or await inside a loop", spec(async_for)["ruby"])
         crlf = "+++ b/src/a.py\n+REGISTRY = defaultdict(list)\r\n"
         self.assertIn("module-level collection", spec(crlf)["ruby"])
+
+    def test_attributes_and_binary_markers_cannot_hide_source(self):
+        write(os.path.join(self.repo, ".gitattributes"), "*.py -diff\n")
+        write(os.path.join(self.repo, "src", "a.py"), "token = jwt.decode(t, verify=False)\n")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-qm", "hide")
+        out = os.path.join(self.tmp.name, "attr")
+        review_packet.main(["--repo", self.repo, "--base", "main", "--roles", "maya", "--runtime", "claude", "--out", out])
+        self.assertIn("+token = jwt.decode(t, verify=False)", open(os.path.join(out, "diff.patch")).read())
+        manifest = json.load(open(os.path.join(out, "manifest.json")))
+        self.assertEqual(manifest["security"]["tier"], "remy+")
+        self.assertIn("diff attributes", manifest["security"]["signals"])
+        hidden = "diff --git a/src/x.ts b/src/x.ts\nindex 1..2 100644\nBinary files a/src/x.ts and b/src/x.ts differ\n"
+        self.assertIn("hidden source content", review_packet.security_tier(hidden)[1])
 
     def test_lone_carriage_return_does_not_shift_hunks(self):
         path = os.path.join(self.repo, "src", "cr.py")
