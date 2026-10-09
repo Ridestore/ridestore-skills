@@ -34,6 +34,27 @@ differ. Codex-side roles keep the Codex matrix's models and efforts.
 `reasoningEffort` through to OpenAI models, and Anthropic effort is not
 configured per agent here until verified. Do not claim an effort that was not set.
 
+## Provider fallback (DeepSeek, GLM)
+
+`install.py --opencode-root …` checks which providers OpenCode can use (API-key
+variables, saved logins in `~/.local/share/opencode/auth.json`, provider
+sections in `opencode.json(c)`):
+
+| Connected | Reviewer models |
+| --- | --- |
+| OpenAI (GPT) or Anthropic (Claude) | the table above, linked unchanged |
+| neither, but DeepSeek | `deepseek/deepseek-reasoner` for Maya, Zoe, Cleo, Remy+, Nora, Oscar, Iris and Vera (the opus, astra and luna-xhigh agents); `deepseek/deepseek-chat` for the rest |
+| none of those, but GLM (`zhipuai`/`zai`) | `zhipuai/glm-4.6` for every role |
+| none of these | the table above, with a warning in the plan that providers are missing |
+
+For DeepSeek or GLM the installer writes marked copies of the agent files with
+the model swapped and OpenAI-only `reasoningEffort` removed; `--opencode-profile`
+forces a choice. Re-running it after connecting GPT or Claude switches back.
+In these profiles every role runs on one model family: say in the plan and PR
+that Felix's independent pass is **not** cross-family. Fallback model IDs are
+not runtime-verified; check `opencode models` and adjust if your provider names
+them differently.
+
 ## Dispatch
 
 - Agents live in `agents/opencode/*.md` (Markdown, `mode: subagent`, pinned

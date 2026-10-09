@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -15,6 +16,47 @@ REQUIRED = ("SKILL.md", "agents/openai.yaml", "scripts/install.py",
             "references/progress.md", "references/workspaces.md",
             "references/attestation.md", "references/post-pr.md",
             "references/maintenance.md")
+
+
+# OpenCode fallback when neither OpenAI (GPT) nor Anthropic (Claude) is connected:
+# DeepSeek first, then GLM. Strong models go to the deep roles' agents.
+OPENCODE_PROFILES = {
+    "deepseek": {"strong": "deepseek/deepseek-reasoner", "fast": "deepseek/deepseek-chat"},
+    "glm": {"strong": "zhipuai/glm-4.6", "fast": "zhipuai/glm-4.6"},
+}
+STRONG_OPENCODE_AGENTS = {"pr-shepherd-opus", "pr-shepherd-astra", "pr-shepherd-luna-xhigh"}
+MANAGED_COPY = "# pr-shepherd-managed-copy"
+PROVIDER_ENV = {"openai": ["OPENAI_API_KEY"], "anthropic": ["ANTHROPIC_API_KEY"],
+                "deepseek": ["DEEPSEEK_API_KEY"], "glm": ["ZHIPU_API_KEY", "ZHIPUAI_API_KEY", "ZAI_API_KEY", "GLM_API_KEY"]}
+PROVIDER_IDS = {"openai": r'"openai"', "anthropic": r'"anthropic"', "deepseek": r'"deepseek"',
+                "glm": r'"(?:zhipuai|zai|zai-coding-plan|glm)[a-z0-9-]*"'}
+
+
+def opencode_providers(home=None, env=None):
+    """Providers OpenCode can use: API-key variables, saved logins (auth.json) and
+    provider sections in opencode.json(c). Reads only; never prints secrets."""
+    home, env = home or Path.home(), env if env is not None else os.environ
+    found = {name for name, keys in PROVIDER_ENV.items() if any(env.get(k) for k in keys)}
+    blob = "\n".join(p.read_text(errors="ignore") for p in (
+        home / ".local/share/opencode/auth.json", home / ".config/opencode/opencode.json",
+        home / ".config/opencode/opencode.jsonc") if p.is_file()).lower()
+    found |= {name for name, pattern in PROVIDER_IDS.items() if re.search(pattern, blob)}
+    return found
+
+
+def opencode_profile(found):
+    """GPT or Claude connected: the mixed default. Otherwise DeepSeek, then GLM."""
+    if found & {"openai", "anthropic"}:
+        return "default"
+    return "deepseek" if "deepseek" in found else "glm" if "glm" in found else "default"
+
+
+def opencode_copy(agent, profile):
+    """Agent file with the profile's model and no OpenAI-only reasoningEffort, marked as managed."""
+    model = OPENCODE_PROFILES[profile]["strong" if agent.stem in STRONG_OPENCODE_AGENTS else "fast"]
+    text = re.sub(r"^model: .*$", f"model: {model}", agent.read_text(), count=1, flags=re.M)
+    text = re.sub(r"^reasoningEffort: .*\n", "", text, flags=re.M)
+    return text.replace("---\n", f"---\n{MANAGED_COPY} ({profile})\n", 1)
 
 
 def validate_package(source):
@@ -46,7 +88,9 @@ def main():
     parser.add_argument("--codex-root", type=Path, default=Path.home() / ".agents/skills")
     parser.add_argument("--claude-root", type=Path, default=Path.home() / ".claude/skills")
     parser.add_argument("--claude-agents-root", type=Path, default=Path.home() / ".claude/agents")
-    parser.add_argument("--opencode-root", type=Path, help="also link agents/opencode/*.md here (e.g. ~/.config/opencode/agents)")
+    parser.add_argument("--opencode-root", type=Path, help="also install agents/opencode/*.md here (e.g. ~/.config/opencode/agents)")
+    parser.add_argument("--opencode-profile", choices=["auto", "default", "deepseek", "glm"], default="auto",
+                        help="auto: GPT/Claude connected -> default mix; else DeepSeek; else GLM")
     args = parser.parse_args()
     source = args.source.expanduser().resolve()
     validate_package(source)
@@ -67,10 +111,22 @@ def main():
             raise ValueError(f"Agent definition name mismatch: {agent}")
         models[name] = field(text, "model")
         targets.append((args.claude_agents_root, name + ".md", agent))
+    providers = opencode_providers() if args.opencode_root else set()
+    profile = (opencode_profile(providers) if args.opencode_profile == "auto" else args.opencode_profile) if args.opencode_root else None
+    copies = []
     if args.opencode_root:
         for agent in sorted((source / "agents" / "opencode").glob("*.md")):
-            targets.append((args.opencode_root, agent.name, agent))
+            if profile == "default":
+                targets.append((args.opencode_root, agent.name, agent))
+            else:
+                copies.append((args.opencode_root.expanduser().absolute() / agent.name, agent, opencode_copy(agent, profile)))
     records = []
+    for dest, agent, text in copies:
+        exists = dest.exists() or dest.is_symlink()
+        ours = (dest.is_symlink() and dest.resolve() == agent) or (dest.is_file() and not dest.is_symlink() and MANAGED_COPY in dest.read_text())
+        current = dest.is_file() and not dest.is_symlink() and dest.read_text() == text
+        status = "copied" if current else "collision" if exists and not ours else "missing"
+        records.append({"path": str(dest), "expected_target": f"copy of {agent} ({profile})", "status": status, "_text": text})
     for root, name, expected in targets:
         dest = root.expanduser().absolute() / name
         exists = dest.exists() or dest.is_symlink()
@@ -85,6 +141,7 @@ def main():
             record["resolved_version"] = version
         records.append(record)
     report = {"source": str(source), "version": version, "models": models,
+              "opencode": {"providers": sorted(providers), "profile": profile} if args.opencode_root else None,
               "mode": "check" if args.check else "install" if args.install else "dry-run",
               "targets": records}
     if any(r["status"] == "collision" for r in records):
@@ -97,6 +154,16 @@ def main():
         for r in records:
             if r["status"] != "missing":
                 continue
+            if "_text" in r:
+                r["action"] = "copy"
+                if args.install:
+                    dest = Path(r["path"])
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    if dest.is_symlink():
+                        dest.unlink()
+                    dest.write_text(r["_text"])
+                    r["status"] = "copied"
+                continue
             r["action"] = "link"
             if args.install:
                 dest = Path(r["path"])
@@ -104,6 +171,8 @@ def main():
                 dest.symlink_to(r["expected_target"], target_is_directory=dest.name == "pr-shepherd")
                 r["status"] = "linked"
                 r["resolved_version"] = version
+    for r in records:
+        r.pop("_text", None)
     print(json.dumps(report, indent=2))
     return code
 
