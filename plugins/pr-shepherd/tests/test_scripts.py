@@ -203,12 +203,12 @@ class OpenCodeProfileTest(unittest.TestCase):
         report, root = self.run_install({"DEEPSEEK_API_KEY": "y"}, '{"provider": {"zhipuai": {}}}')
         self.assertEqual(report["opencode"]["profile"], "deepseek")
         opus = open(os.path.join(root, "pr-shepherd-opus.md")).read()
-        sol = open(os.path.join(root, "pr-shepherd-luna-xhigh.md")).read()
+        luna = open(os.path.join(root, "pr-shepherd-luna-xhigh.md")).read()
         self.assertIn("model: deepseek/deepseek-flash", opus)
         self.assertIn("model: deepseek/deepseek-flash", open(os.path.join(root, "pr-shepherd-sol-high.md")).read())
-        self.assertIn("model: deepseek/deepseek-flash", sol)
-        self.assertNotIn("reasoningEffort", sol)
-        self.assertIn("pr-shepherd-managed-copy", sol)
+        self.assertIn("model: deepseek/deepseek-flash", luna)
+        self.assertNotIn("reasoningEffort", luna)
+        self.assertIn("pr-shepherd-managed-copy", luna)
 
     def test_glm_only_when_no_gpt_claude_or_deepseek(self):
         report, root = self.run_install({}, '{"provider": {"zhipuai": {"options": {}}}}')
@@ -304,6 +304,34 @@ class RetiredAgentTest(unittest.TestCase):
         subprocess.run([sys.executable, os.path.join(SCRIPTS, "install.py"), "--install", "--codex-root",
                         os.path.join(home, "c"), "--claude-root", os.path.join(home, "d"), "--claude-agents-root", agents],
                        capture_output=True, check=True)
+        self.assertTrue(os.path.isfile(dest))
+
+    def test_removes_our_retired_sol_agent_link(self):
+        home = tempfile.mkdtemp()
+        root = os.path.join(home, "oc")
+        os.makedirs(root)
+        dest = os.path.join(root, "pr-shepherd-sol.md")
+        os.symlink(os.path.join(os.path.dirname(SCRIPTS), "agents", "opencode", "pr-shepherd-sol.md"), dest)
+        subprocess.run([sys.executable, os.path.join(SCRIPTS, "install.py"), "--install", "--codex-root", os.path.join(home, "c"),
+                        "--claude-root", os.path.join(home, "d"), "--claude-agents-root", os.path.join(home, "a"),
+                        "--opencode-root", root, "--opencode-profile", "default"], capture_output=True, check=True)
+        self.assertFalse(os.path.lexists(dest))
+        self.assertTrue(os.path.islink(os.path.join(root, "pr-shepherd-luna-xhigh.md")))
+
+    def test_removes_our_retired_sol_managed_copy_but_keeps_a_users_file(self):
+        home = tempfile.mkdtemp()
+        root = os.path.join(home, "oc")
+        dest = os.path.join(root, "pr-shepherd-sol.md")
+        args = [sys.executable, os.path.join(SCRIPTS, "install.py"), "--codex-root", os.path.join(home, "c"),
+                "--claude-root", os.path.join(home, "d"), "--claude-agents-root", os.path.join(home, "a"),
+                "--opencode-root", root, "--opencode-profile", "deepseek"]
+        write(dest, "---\n# pr-shepherd-managed-copy (deepseek)\nmodel: deepseek/deepseek-flash\n---\n")
+        self.assertEqual(subprocess.run(args + ["--check"], capture_output=True).returncode, 1)
+        subprocess.run(args + ["--install"], capture_output=True, check=True)
+        self.assertFalse(os.path.lexists(dest))
+        self.assertIn("model: deepseek/deepseek-flash", open(os.path.join(root, "pr-shepherd-luna-xhigh.md")).read())
+        write(dest, "---\nmodel: mine\n---\n")
+        subprocess.run(args + ["--install"], capture_output=True, check=True)
         self.assertTrue(os.path.isfile(dest))
 
     def test_removes_only_our_retired_astra_agent(self):

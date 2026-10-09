@@ -5,11 +5,14 @@
 - Claude: Opus only for Maya (bugs) and Remy+ (sensitive security); Theo and
   Felix move to `sonnet-reviewer-medium`, so the independent pass also runs on a
   different model than the bug review.
-- Codex and OpenCode: GPT-6.1 Sol only for Maya (medium) and Remy+ (high); Finn,
-  Theo, Jasper, Felix, routine Remy, Ruby, Zoe, Cleo, Otis, Milo and Luna run
-  GPT-6 Luna at xhigh; Nora, Oscar, Iris and Vera stay on Luna at high. OpenCode
-  brings back `pr-shepherd-luna-xhigh` and retires `pr-shepherd-sol`, which the
-  installer removes when it created it.
+- Codex: GPT-6.1 Sol only for Maya (medium) and Remy+ (high); Finn, Theo,
+  Jasper, Felix, routine Remy, Ruby, Zoe, Cleo, Otis, Milo and Luna run GPT-6
+  Luna at xhigh; Nora, Oscar, Iris and Vera stay on Luna at high.
+- OpenCode follows Codex for its GPT roles: Sol (high) only for Remy+; Maya, Zoe
+  and Cleo stay on Claude Opus. It brings back `pr-shepherd-luna-xhigh` and
+  retires `pr-shepherd-sol`, which the installer removes when it created it. A
+  `pr-shepherd-luna-xhigh.md` left from before 2.4.0 that the installer cannot
+  attribute to itself is reported as a collision; remove it by hand.
 
 ## 2.4.1
 
