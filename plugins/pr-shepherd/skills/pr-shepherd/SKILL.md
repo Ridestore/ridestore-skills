@@ -2,8 +2,8 @@
 name: pr-shepherd
 description: Deliver a coding task as a normal, non-draft pull request that has passed a local multi-agent review before the first push, then follow up on review threads and CI. Use for /pr-shepherd, $pr-shepherd, or a request to implement a change and open a locally reviewed PR.
 metadata:
-  version: "2.4.2"
-  updated: "2026-10-09"
+  version: "2.5.0"
+  updated: "2026-10-10"
 ---
 
 # PR Shepherd

@@ -10,7 +10,7 @@ pushing) and build the packet:
 
 ```sh
 python3 <skill>/scripts/review_packet.py --repo <task tree> --base origin/main --fetch \
-  --runtime claude|codex|opencode|dsh --roles finn,maya,nora,felix \
+  --runtime claude|codex|opencode|dsh --roles themis,pandora,proteus,odysseus \
   --criteria <file or text> --stale '<old value>' --stale '<old id>'
 ```
 
@@ -43,9 +43,9 @@ manifest paths, acceptance criteria, applicable instructions, the role's scope
 **and what to leave to others** ([roles](roles.md)), the prohibitions (no edits,
 commits, pushes, GitHub comments, nested agents) and the JSON result format.
 Describe each call with the role's `label` from `manifest.json`: name, what it
-checks, model and effort ("Maya · Bugs review · Opus medium"; merged calls join
-them, e.g. "Finn+Jasper · Guidelines and comments review · Sonnet medium"), not
-the PR title. The agent type shown beside it is the shared definition. Felix gets no other findings or author claims. Evidence agents do get the
+checks, model and effort ("Pandora · Bugs review · Opus medium"; merged calls join
+them, e.g. "Themis+Mnemosyne · Guidelines and comments review · Sonnet medium"), not
+the PR title. The agent type shown beside it is the shared definition. Odysseus gets no other findings or author claims. Evidence agents do get the
 specific findings. Check live identities before dispatch and again before
 accepting results; a changed snapshot invalidates affected results.
 
@@ -69,7 +69,7 @@ ownership; a writer is never its own sole reviewer.
    silence or a lowered severity are not disproof.
 6. After fixes: verify, commit, rebuild the packet with
    `--previous-head <old head> --findings <dispositions file>`, and send it to
-   the affected roles plus Maya's incremental fix check. Reuse earlier evidence
+   the affected roles plus Pandora's incremental fix check. Reuse earlier evidence
    only where the inspected code is unchanged, and say so.
 7. If rounds stop making progress, isolate the disagreement and ask the user.
 
@@ -92,3 +92,8 @@ Keep it beside the packet: repository, SHAs, criteria, tier, role plan,
 self-check result, each role's definition/model/effort, call ID, observed model,
 tokens and duration, findings with dispositions, verification commands and
 results, decisions asked of the user, and the final gate result.
+
+Known pre-2.5 persona names are accepted as CLI aliases; generated packets use
+the Greek identities. Security requests for Artemis promote to Athena when the
+existing detector finds a sensitive signal. `--roles athena` explicitly requests
+the stronger row. This renaming does not change models, efforts or the detector.

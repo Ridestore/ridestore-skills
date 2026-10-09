@@ -12,45 +12,46 @@ when it is critical, marked `out_of_scope: true`.
 
 | Role | Name | Owns | Leaves to others |
 | --- | --- | --- | --- |
-| Guidelines | Finn | Explicit AGENTS/CLAUDE/REVIEW rules; quotes the exact rule broken, including required doc updates. | Whether prose matches code (Jasper); code bugs (Maya). |
-| Bugs | Maya | Concrete incorrect behavior: boundaries, races, cleanup, error paths, reachable null states. | Doc wording, style, architecture opinions. |
-| Architecture | Theo | Callers, compatibility, service/data contracts, side effects, rollout/rollback, failure propagation. | Line-level bugs (Maya); types (Nora); doc wording. |
-| Types | Nora | Runtime data versus assumed types, validation, narrowing, casts at external boundaries; not compiler output. | Behavior bugs that are not type-shaped. |
-| Comments and intent | Jasper | Stale or false comments, JSDoc, test names and docs versus the code at this head. | Rule compliance (Finn); code bugs. |
-| Independent review | Felix | A fresh full-diff review; sees no other findings or author claims before returning. | Nothing: deliberately overlapping second opinion. |
-| Security | Remy | Authorization, untrusted input, injection, secrets, trust boundaries, data exposure. | Non-security bugs. |
-| Performance | Ruby | Hot paths, queries, network calls, allocations, bounded work, resource limits. | Correctness bugs. |
-| Code quality | Oscar | Introduced maintainability problems with a concrete consequence or rule. | Speculative refactors; style a linter owns. |
-| Language | Iris | Language-specific correctness and conventions for the language actually changed. | Cross-language architecture. |
-| Self-reflection | Zoe | Challenges findings for false positives and actual impact. | New findings. |
-| Debate | Cleo | Resolves conflicting findings/fixes from source; exposes genuine user decisions. | New findings. |
-| Confidence | Milo | Whether evidence supports each finding; a number never erases a concrete hypothesis. | New findings. |
-| Verification | Vera | Reproduces or traces a finding and verifies the proposed fix. | New findings. |
-| Fact check | Otis | Real signatures, schemas, imports, callers and official docs, not assumed APIs. | New findings. |
-| Reachability | Luna | Guards and state transitions behind null/undefined/initialization claims. | New findings. |
-| Incremental fix check | Maya | Confirms each fix and inspects its consumers for regressions. | Re-reviewing unchanged areas. |
+| Guidelines | Themis | Explicit AGENTS/CLAUDE/REVIEW rules; quotes the exact rule broken, including required doc updates. | Whether prose matches code (Mnemosyne); code bugs (Pandora). |
+| Bugs | Pandora | Concrete incorrect behavior: boundaries, races, cleanup, error paths, reachable null states. | Doc wording, style, architecture opinions. |
+| Architecture | Daedalus | Callers, compatibility, service/data contracts, side effects, rollout/rollback, failure propagation. | Line-level bugs (Pandora); types (Proteus); doc wording. |
+| Types | Proteus | Runtime data versus assumed types, validation, narrowing, casts at external boundaries; not compiler output. | Behavior bugs that are not type-shaped. |
+| Comments and intent | Mnemosyne | Stale or false comments, JSDoc, test names and docs versus the code at this head. | Rule compliance (Themis); code bugs. |
+| Independent review | Odysseus | A fresh full-diff review; sees no other findings or author claims before returning. | Nothing: deliberately overlapping second opinion. |
+| Security | Artemis | Authorization, untrusted input, injection, secrets, trust boundaries, data exposure. | Non-security bugs. |
+| Security | Athena | Authentication, authorization, secrets, trust boundaries and the high-risk signals below. | Non-security bugs. |
+| Performance | Icarus | Hot paths, queries, network calls, allocations, bounded work, resource limits. | Correctness bugs. |
+| Code quality | Hephaestus | Introduced maintainability problems with a concrete consequence or rule. | Speculative refactors; style a linter owns. |
+| Language | Palamedes | Language-specific correctness and conventions for the language actually changed. | Cross-language architecture. |
+| Self-reflection | Psyche | Challenges findings for false positives and actual impact. | New findings. |
+| Debate | Harmonia | Resolves conflicting findings/fixes from source; exposes genuine user decisions. | New findings. |
+| Confidence | Metis | Whether evidence supports each finding; a number never erases a concrete hypothesis. | New findings. |
+| Verification | Theseus | Reproduces or traces a finding and verifies the proposed fix. | New findings. |
+| Fact check | Aletheia | Real signatures, schemas, imports, callers and official docs, not assumed APIs. | New findings. |
+| Reachability | Ariadne | Guards and state transitions behind null/undefined/initialization claims. | New findings. |
+| Incremental fix check | Pandora | Confirms each fix and inspects its consumers for regressions. | Re-reviewing unchanged areas. |
 
-Optional companion roles: Ada (PR summary), Eli (change guide), Sofia
-(translations), Hugo (E2E relevance), Max (comment replies). The coordinator may
+Optional companion roles: Calliope (PR summary), Prometheus (change guide), Cadmus
+(translations), Cassandra (E2E relevance), Peitho (comment replies). The coordinator may
 do them; they never count as independent code review.
 
 ## Routing
 
 - **Basic:** small, isolated implementation with no contract or trust-boundary
-  change. Maya and Felix as separate agents, plus applicable specialists.
-- **Standard:** ordinary code changes. Finn, Maya, Nora and Felix. Without
-  written repository guidance, Theo replaces Finn.
+  change. Pandora and Odysseus as separate agents, plus applicable specialists.
+- **Standard:** ordinary code changes. Themis, Pandora, Proteus and Odysseus. Without
+  written repository guidance, Daedalus replaces Themis.
 - **Deep:** shared API/schema changes, cross-service behavior, security,
   concurrency, lifecycle changes, broad refactors, substantial agent/workflow
-  instructions, or model/cost policy. Finn, Maya, Theo, Nora, Jasper and Felix.
+  instructions, or model/cost policy. Themis, Pandora, Daedalus, Proteus, Mnemosyne and Odysseus.
 
 **Docs-and-rules merge.** When most of the diff is documentation, policy or
-instructions, run Finn and Jasper as one call ("Finn+Jasper") that owns both
+instructions, run Themis and Mnemosyne as one call ("Themis+Mnemosyne") that owns both
 columns. It still counts as both roles.
 
-Remy is required when trust, auth, secret, input or permission boundaries
-change. **Which model Remy uses is decided by signals in the diff, not by
-judgement** (`review_packet.py` detects them and records the matches): Remy+
+Artemis is required when trust, auth, secret, input or permission boundaries
+change. **Whether Artemis or Athena runs is decided by signals in the diff, not by
+judgement** (`review_packet.py` detects them and records the matches): Athena
 (the stronger security row) when changed paths or added lines touch
 authentication (login, session, JWT, OAuth, access/refresh/bearer tokens,
 cookies, passwords, MFA), authorization (permissions, RBAC/ACL, role checks,
@@ -63,21 +64,21 @@ intents/methods/providers, refunds), personal data where it is stored or
 queried (email, phone, address, birth date in migrations, schemas, models or
 SQL/ORM writes), or when security-relevant changes span two or more top-level
 packages. Repository instructions can add their own production API clients as
-`--security-signal NAME=REGEX`. Otherwise routine Remy (input validation,
+`--security-signal NAME=REGEX`. Otherwise routine Artemis (input validation,
 sanitization or injection checks in one component, dependency bumps, sensitive
-logging). When unsure, use Remy+. The coordinator may raise routine to Remy+
-with a stated reason, never lower a detected Remy+, and names the decision and
+logging). When unsure, use Athena. The coordinator may raise routine to Athena
+with a stated reason, never lower a detected Athena, and names the decision and
 its matches in the plan and the PR body.
 
-Ruby is required for hot paths/resource changes; Oscar for structural complexity;
-Iris for language-specific behavior outside the others' expertise. Do not run
+Icarus is required for hot paths/resource changes; Hephaestus for structural complexity;
+Palamedes for language-specific behavior outside the others' expertise. Do not run
 specialists only to fill a matrix. Downstream review settings and the optional
-attestation label never lower this profile. Maya and Felix are always distinct
+attestation label never lower this profile. Pandora and Odysseus are always distinct
 first-pass calls.
 
-**When findings exist,** run one evidence agent covering Vera, Otis and Milo
-(and Luna for null/initialization findings); its output names each check
-separately. Deep reviews also run Zoe, and Cleo when findings conflict. If the
+**When findings exist,** run one evidence agent covering Theseus, Aletheia and Metis
+(and Ariadne for null/initialization findings); its output names each check
+separately. Deep reviews also run Psyche, and Harmonia when findings conflict. If the
 coordinator does this evidence work itself instead, the review is still valid
 for publishing but is **not** a passing review for attestation; say so in the
 PR. The author alone never independently verifies a disputed fix.

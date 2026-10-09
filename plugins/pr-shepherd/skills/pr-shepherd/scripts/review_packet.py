@@ -10,7 +10,7 @@ Writes, under <git-path>/pr-shepherd-review/<head12>/ (or --out):
 
 Standard library only. Read-only for the repository except `--fetch`.
 
-  review_packet.py --repo . --roles finn,maya,nora,felix --runtime claude \\
+  review_packet.py --repo . --roles themis,pandora,proteus,odysseus --runtime claude \\
       --criteria criteria.md --stale 'Luna/medium' --stale 'old-policy-id'
 """
 
@@ -32,7 +32,7 @@ RESULT_SCHEMA = """{"role":"<role>","head":"<head sha>","base":"<merge-base sha>
  "limitations":[]}"""
 
 
-# Security signals that send Remy to the stronger row (Remy+). Specific forms on
+# Security signals that send Artemis to the stronger row (Athena). Specific forms on
 # purpose: plain "token" or "policy" also mean LLM tokens or config policy.
 SECURITY_SIGNALS = {
     "authentication": r"\b(auth|authn|authenticat[a-z_]*|auth[_-][a-z_]+|login|logout|session[_-]?(id|token|cookie|secret|store)|set-cookie|cookies?|jwt|oauth[a-z0-9_]*|access[_-]?tokens?|refresh[_-]?tokens?|bearer|passw(or)?d[a-z_]*|mfa|2fa|totp)\b",
@@ -55,9 +55,9 @@ STORAGE_LINE = re.compile(r"\b(insert\s+into|update\s+\w+\s+set|create\s+table|a
 
 
 def security_tier(diff_text, extra_signals=None):
-    """'remy+' with its matches when a security signal appears in a changed code or
+    """'athena' with its matches when a security signal appears in a changed code or
     config path or added line (docs, tests and fixtures are ignored: prose about auth
-    is not an auth change), otherwise 'remy'. Cross-service: signals in 2+ top-level dirs."""
+    is not an auth change), otherwise 'artemis'. Cross-service: signals in 2+ top-level dirs."""
     signals = {**SECURITY_SIGNALS, **(extra_signals or {})}
     matches, current = {}, None
     for line in diff_text.splitlines():
@@ -81,7 +81,7 @@ def security_tier(diff_text, extra_signals=None):
     if len(tops) >= 2:
         matches["cross-service"] = set(sorted(files)[:5])
     found = {k: sorted(v)[:5] for k, v in matches.items()}
-    return ("remy+" if found else "remy"), found
+    return ("athena" if found else "artemis"), found
 
 
 def git(repo, *args, check=True):
@@ -104,7 +104,7 @@ def table_rows(path):
 
 
 def role_names(cell):
-    """'Zoe / Cleo — reflection and debate' -> ['zoe', 'cleo']."""
+    """'Psyche / Harmonia — reflection and debate' -> ['psyche', 'harmonia']."""
     head = cell.split("—")[0]
     return [n.strip().lower() for n in head.split("/") if n.strip()]
 
@@ -129,7 +129,7 @@ def short_model(model):
 
 def review_label(name, role, model=None, effort=None, sensitive=False):
     """Agent-call description: who, what it checks, and on what
-    ("Maya · Bugs review · Opus medium")."""
+    ("Pandora · Bugs review · Opus medium")."""
     check = role if role.lower().endswith("review") else f"{role} review"
     if sensitive:
         check += " (sensitive)"
@@ -204,10 +204,17 @@ def build_prompt(role, info, setup):
         "Inspect changed files fully and relevant unchanged callers. Each finding needs a concrete trigger, impact and "
         "source evidence. Before returning no findings, try a realistic counterexample to each changed guard.",
     ]
-    if role == "felix":
+    if role == "odysseus":
         lines.append("You see no other reviewer's findings or author claims; review the complete diff from scratch.")
     lines += ["", "Return JSON only:", RESULT_SCHEMA.replace("<role>", role)]
     return "\n".join(lines) + "\n"
+
+
+# CLI compatibility only; never apply these aliases to model identifiers.
+LEGACY_ROLES = dict(zip(
+    "finn maya theo nora jasper felix remy remy+ ruby oscar iris zoe cleo milo vera otis luna ada eli sofia hugo max".split(),
+    "themis pandora daedalus proteus mnemosyne odysseus artemis athena icarus hephaestus palamedes psyche harmonia metis theseus aletheia ariadne calliope prometheus cadmus cassandra peitho".split(),
+))
 
 
 def main(argv=None):
@@ -215,12 +222,12 @@ def main(argv=None):
     ap.add_argument("--repo", default=".")
     ap.add_argument("--base", default="origin/main", help="target ref (default origin/main)")
     ap.add_argument("--fetch", action="store_true", help="fetch the target branch first")
-    ap.add_argument("--roles", required=True, help="comma-separated role names, e.g. finn,maya,felix")
+    ap.add_argument("--roles", required=True, help="comma-separated role names, e.g. themis,pandora,odysseus")
     ap.add_argument("--runtime", choices=["claude", "codex", "opencode", "dsh"], required=True)
     ap.add_argument("--criteria", help="acceptance criteria text, or a path to a file holding them")
     ap.add_argument("--stale", action="append", default=[], help="regex that must no longer appear at head (repeatable)")
     ap.add_argument("--security-signal", action="append", default=[], metavar="NAME=REGEX",
-                    help="extra repository signal that sends Remy to Remy+ (e.g. its production API client)")
+                    help="extra repository signal that sends Artemis to Athena (e.g. its production API client)")
     ap.add_argument("--previous-head", help="last reviewed head, for an incremental fix check")
     ap.add_argument("--findings", help="file with earlier findings and dispositions, for a recheck")
     ap.add_argument("--out", help="output directory (default: <git-path>/pr-shepherd-review/<head12>)")
@@ -251,13 +258,17 @@ def main(argv=None):
             fh.write(git(repo, "diff", "--find-renames", args.previous_head, head))
 
     roles_info, matrix = load_roles(), load_matrix(args.runtime)
-    wanted = [r.strip().lower() for r in args.roles.split(",") if r.strip()]
+    wanted = list(dict.fromkeys(LEGACY_ROLES.get(r.strip().lower(), r.strip().lower())
+                                for r in args.roles.split(",") if r.strip()))
     unknown = [r for r in wanted if r not in roles_info]
     if unknown:
         raise SystemExit(f"unknown roles {unknown}; known: {sorted(roles_info)}")
 
     extra = dict(item.split("=", 1) for item in args.security_signal)
     tier, signals = security_tier(open(diff_path, encoding="utf-8").read(), extra)
+    if "athena" in wanted:
+        tier = "athena"  # Explicit stronger review never falls back to the routine row.
+    wanted = list(dict.fromkeys(tier if r == "artemis" else r for r in wanted))
     criteria = args.criteria or ""
     if criteria and os.path.isfile(criteria):
         criteria = open(criteria, encoding="utf-8").read().strip()
@@ -267,11 +278,11 @@ def main(argv=None):
         "repo": repo, "repo_name": os.path.basename(repo), "base_ref": args.base, "tip": tip,
         "merge_base": merge_base, "head": head, "tree": tree, "previous_head": args.previous_head,
         "files": files, "instructions": instructions, "runtime": args.runtime,
-        "roles": {r: {**roles_info[r], **matrix.get(tier if r == "remy" else r, {}),
+        "roles": {r: {**roles_info[r], **matrix.get(r, {}),
                       "label": review_label(roles_info[r]["name"], roles_info[r]["role"],
-                                           matrix.get(tier if r == "remy" else r, {}).get("model"),
-                                           matrix.get(tier if r == "remy" else r, {}).get("effort"),
-                                           r == "remy" and tier == "remy+")} for r in wanted},
+                                           matrix.get(r, {}).get("model"),
+                                           matrix.get(r, {}).get("effort"),
+                                           r == "athena")} for r in wanted},
         "security": {"tier": tier, "signals": signals},
         "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
     }
@@ -288,7 +299,7 @@ def main(argv=None):
             fh.write("No --stale patterns given. Add the old values this change replaces.\n")
         for pattern, hits in stale.items():
             fh.write(f"- `{pattern}`: {len(hits)} match(es)\n" + "".join(f"  - {h}\n" for h in hits))
-        fh.write(f"\n## Security reviewer\n\nRemy uses the `{tier}` row"
+        fh.write(f"\n## Security reviewer\n\n{tier.capitalize()} uses the `{tier}` row"
                  + (": " + "; ".join(f"{k} ({', '.join(v)})" for k, v in signals.items()) if signals else
                     " (no authentication, authorization, trust-boundary, secrets or infra signal)") + ".\n")
         fh.write("\n## Instruction files to satisfy\n\n" + ("".join(f"- {p}\n" for p in instructions) or "- none\n"))
@@ -305,7 +316,7 @@ def main(argv=None):
     print(json.dumps({"out": out, "head": head, "tree": tree, "tip": tip, "merge_base": merge_base,
                       "files": len(files), "stale_matches": {p: len(h) for p, h in stale.items()},
                       "security": {"tier": tier, "signals": signals},
-                      "roles": {r: matrix.get(tier if r == "remy" else r) for r in wanted}}, indent=2))
+                      "roles": {r: matrix.get(r) for r in wanted}}, indent=2))
     return 1 if any(stale.values()) else 0
 
 

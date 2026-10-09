@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.0
+
+- Rename review personas and packet role IDs to the Greek roster shared with Pegasus and Observability Hub. Icarus owns performance; Ariadne owns reachability.
+- Preserve model identifiers, efforts, review gates and historical release notes.
+
 ## 2.4.2
 
 - Claude: Opus only for Maya (bugs) and Remy+ (sensitive security); Theo and

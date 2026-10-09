@@ -1,6 +1,6 @@
 # OpenCode role/model matrix
 
-Matrix revision: 2026-10-09 (skill 2.4.2), cost profile, mixed providers.
+Matrix revision: 2026-10-10 (skill 2.5.0), cost profile, mixed providers.
 Last verified: not yet — no OpenCode review has run on these definitions. Model
 IDs assume the `anthropic` and `openai` providers are configured; run one review
 and record what ran (see [maintenance](maintenance.md)). Check with
@@ -8,27 +8,27 @@ and record what ran (see [maintenance](maintenance.md)). Check with
 
 OpenCode is the one runtime that can mix providers in one review. Independent
 roles run on a **different model family** than the role they double-check:
-Felix (independent) on GPT while Maya (bugs) is on Claude, so their blind spots
+Odysseus (independent) on GPT while Pandora (bugs) is on Claude, so their blind spots
 differ. Codex-side roles keep the Codex matrix's models and efforts.
 
 | Role | Pinned model ID | Effort | OpenCode agent |
 | --- | --- | --- | --- |
 | Coordinator | Current session model | Inherit | Current session |
-| Finn — guidelines | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |
-| Maya — bugs / incremental fix check | `anthropic/claude-opus-5-5` | provider default | pr-shepherd-opus |
-| Theo — architecture | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |
-| Nora — types | `openai/gpt-6-luna` | high | pr-shepherd-luna-high |
-| Jasper — comments and intent | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |
-| Felix — independent reviewer | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |
-| Remy — security, routine | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |
-| Remy+ — security: auth, permissions, trust boundaries, secrets, infra, cross-service | `openai/gpt-6.1-sol` | high | pr-shepherd-sol-high |
-| Ruby — performance | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |
-| Oscar — code quality | `openai/gpt-6-luna` | high | pr-shepherd-luna-high |
-| Iris — language | `openai/gpt-6-luna` | high | pr-shepherd-luna-high |
-| Zoe / Cleo — reflection and debate | `anthropic/claude-opus-5-5` | provider default | pr-shepherd-opus |
-| Vera — verification | `openai/gpt-6-luna` | high | pr-shepherd-luna-high |
-| Otis / Milo / Luna — fact check, confidence, reachability | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |
-| Ada / Eli / Sofia / Hugo / Max — optional companion duties | Coordinator | Inherit | Not counted as review |
+| Themis — guidelines | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |
+| Pandora — bugs / incremental fix check | `anthropic/claude-opus-5-5` | provider default | pr-shepherd-opus |
+| Daedalus — architecture | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |
+| Proteus — types | `openai/gpt-6-luna` | high | pr-shepherd-luna-high |
+| Mnemosyne — comments and intent | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |
+| Odysseus — independent reviewer | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |
+| Artemis — security, routine | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |
+| Athena — security: auth, permissions, trust boundaries, secrets, infra, cross-service | `openai/gpt-6.1-sol` | high | pr-shepherd-sol-high |
+| Icarus — performance | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |
+| Hephaestus — code quality | `openai/gpt-6-luna` | high | pr-shepherd-luna-high |
+| Palamedes — language | `openai/gpt-6-luna` | high | pr-shepherd-luna-high |
+| Psyche / Harmonia — reflection and debate | `anthropic/claude-opus-5-5` | provider default | pr-shepherd-opus |
+| Theseus — verification | `openai/gpt-6-luna` | high | pr-shepherd-luna-high |
+| Aletheia / Metis / Ariadne — fact check, confidence, reachability | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |
+| Calliope / Prometheus / Cadmus / Cassandra / Peitho — optional companion duties | Coordinator | Inherit | Not counted as review |
 
 "Provider default" means the agent file sets no effort: OpenCode passes
 `reasoningEffort` through to OpenAI models, and Anthropic effort is not
@@ -51,7 +51,7 @@ For DeepSeek or GLM the installer writes marked copies of the agent files with
 the model swapped and OpenAI-only `reasoningEffort` removed; `--opencode-profile`
 forces a choice. Re-running it after connecting GPT or Claude switches back.
 In these profiles every role runs on one model family: say in the plan and PR
-that Felix's independent pass is **not** cross-family. Fallback model IDs are
+that Odysseus's independent pass is **not** cross-family. Fallback model IDs are
 not runtime-verified; check `opencode models` and adjust if your provider names
 them differently.
 

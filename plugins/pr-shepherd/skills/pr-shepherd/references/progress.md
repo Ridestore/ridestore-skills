@@ -31,8 +31,8 @@ When a role finishes, show its tokens and duration from the completion report
 next to its result, and a running total for the review. The PR body lists them
 per role, so the cost of a review is visible.
 
-Example: “Local review: 3/6 roles complete (Maya 220k tokens, 6 min; Nora 99k,
-2 min; Finn 165k, 4 min). Maya found an error path; Theo and Nora's results are
+Example: “Local review: 3/6 roles complete (Pandora 220k tokens, 6 min; Proteus 99k,
+2 min; Themis 165k, 4 min). Pandora found an error path; Daedalus and Proteus's results are
 being merged.” Show the actual runtime's models and numbers; never copy example
 values as execution evidence.
 

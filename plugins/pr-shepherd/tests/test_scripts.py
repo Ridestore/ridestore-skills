@@ -48,7 +48,7 @@ class ReviewPacketTest(unittest.TestCase):
 
     def run_packet(self, *extra):
         out = os.path.join(self.tmp.name, "packet")
-        code = review_packet.main(["--repo", self.repo, "--base", "main", "--roles", "maya,felix",
+        code = review_packet.main(["--repo", self.repo, "--base", "main", "--roles", "pandora,odysseus",
                                    "--runtime", "claude", "--criteria", "Effort is high.", "--out", out, *extra])
         return code, out
 
@@ -58,71 +58,84 @@ class ReviewPacketTest(unittest.TestCase):
         manifest = json.load(open(os.path.join(out, "manifest.json")))
         self.assertEqual(manifest["files"], ["src/a.py"])
         self.assertEqual(manifest["instructions"], ["AGENTS.md"])
-        self.assertEqual(manifest["roles"]["maya"]["definition"], "opus-reviewer-medium")
+        self.assertEqual(manifest["roles"]["pandora"]["definition"], "opus-reviewer-medium")
         self.assertIn("+EFFORT = 'high'", open(os.path.join(out, "diff.patch")).read())
-        maya = open(os.path.join(out, "prompts", "maya.md")).read()
-        self.assertIn(manifest["head"], maya)
-        self.assertIn("Leave to others:", maya)
-        self.assertIn("Effort is high.", maya)
-        self.assertIn("no other reviewer's findings", open(os.path.join(out, "prompts", "felix.md")).read())
+        pandora = open(os.path.join(out, "prompts", "pandora.md")).read()
+        self.assertIn(manifest["head"], pandora)
+        self.assertIn("Leave to others:", pandora)
+        self.assertIn("Effort is high.", pandora)
+        self.assertIn("no other reviewer's findings", open(os.path.join(out, "prompts", "odysseus.md")).read())
 
     def test_opencode_runtime_uses_its_own_agents(self):
         out = os.path.join(self.tmp.name, "oc")
-        self.assertEqual(review_packet.main(["--repo", self.repo, "--base", "main", "--roles", "maya,felix",
+        self.assertEqual(review_packet.main(["--repo", self.repo, "--base", "main", "--roles", "pandora,odysseus",
                                              "--runtime", "opencode", "--out", out]), 0)
         roles = json.load(open(os.path.join(out, "manifest.json")))["roles"]
-        # Felix double-checks on a different model family than Maya.
-        self.assertTrue(roles["maya"]["model"].startswith("anthropic/"))
-        self.assertTrue(roles["felix"]["model"].startswith("openai/"))
-        self.assertEqual(roles["felix"]["definition"], "pr-shepherd-luna-xhigh")
+        # Odysseus double-checks on a different model family than Pandora.
+        self.assertTrue(roles["pandora"]["model"].startswith("anthropic/"))
+        self.assertTrue(roles["odysseus"]["model"].startswith("openai/"))
+        self.assertEqual(roles["odysseus"]["definition"], "pr-shepherd-luna-xhigh")
 
     def test_dsh_runtime_uses_its_deepseek_tools(self):
         out = os.path.join(self.tmp.name, "dsh")
-        self.assertEqual(review_packet.main(["--repo", self.repo, "--base", "main", "--roles", "maya,nora",
+        self.assertEqual(review_packet.main(["--repo", self.repo, "--base", "main", "--roles", "pandora,proteus",
                                              "--runtime", "dsh", "--out", out]), 0)
         roles = json.load(open(os.path.join(out, "manifest.json")))["roles"]
-        self.assertEqual([roles["maya"][k] for k in ("model", "effort", "definition")],
+        self.assertEqual([roles["pandora"][k] for k in ("model", "effort", "definition")],
                          ["deepseek-flash", "high", "pr_shepherd_flash"])
-        self.assertEqual(roles["nora"]["definition"], "pr_shepherd_flash")
-        self.assertEqual((roles["maya"]["label"], roles["nora"]["label"]),
-                         ("Maya · Bugs review · Flash high", "Nora · Types review · Flash high"))
+        self.assertEqual(roles["proteus"]["definition"], "pr_shepherd_flash")
+        self.assertEqual((roles["pandora"]["label"], roles["proteus"]["label"]),
+                         ("Pandora · Bugs review · Flash high", "Proteus · Types review · Flash high"))
 
     def test_remy_model_follows_security_signals(self):
         _, routine = review_packet.security_tier("+++ b/src/form.py\n+value = int(request.args['n'])\n")
-        self.assertEqual(review_packet.security_tier("+++ b/src/form.py\n+value = clean(x)\n")[0], "remy")
+        self.assertEqual(review_packet.security_tier("+++ b/src/form.py\n+value = clean(x)\n")[0], "artemis")
         self.assertEqual(routine, {})
         # LLM tokens and config policies are not security signals.
-        self.assertEqual(review_packet.security_tier("+++ b/src/llm.ts\n+const tokens = usage.output_tokens; policy.version\n")[0], "remy")
+        self.assertEqual(review_packet.security_tier("+++ b/src/llm.ts\n+const tokens = usage.output_tokens; policy.version\n")[0], "artemis")
         tier, found = review_packet.security_tier(
             "+++ b/api/session.ts\n+const jwt = sign(user)\n+++ b/.github/workflows/ci.yml\n+permissions:\n")
-        self.assertEqual(tier, "remy+")
+        self.assertEqual(tier, "athena")
         self.assertIn("authentication", found)
         self.assertIn("infra permissions", found)
         self.assertIn("cross-service", found)
 
     def test_production_apis_payments_and_stored_personal_data_are_sensitive(self):
         tier = lambda diff, extra=None: review_packet.security_tier(diff, extra)[0]
-        self.assertEqual(tier("+++ b/src/cart.ts\n+import { createApiBuilderFromCtpClient } from '@commercetools/platform-sdk'\n"), "remy+")
-        self.assertEqual(tier("+++ b/src/pay.ts\n+const intent = await stripe.paymentIntents.create(x)\n"), "remy+")
-        self.assertEqual(tier("+++ b/db/migrations/012_users.sql\n+ALTER TABLE users ADD COLUMN email text;\n"), "remy+")
-        self.assertEqual(tier("+++ b/src/repo.ts\n+await db.insert(newsletter).values({ email })\n"), "remy+")
+        self.assertEqual(tier("+++ b/src/cart.ts\n+import { createApiBuilderFromCtpClient } from '@commercetools/platform-sdk'\n"), "athena")
+        self.assertEqual(tier("+++ b/src/pay.ts\n+const intent = await stripe.paymentIntents.create(x)\n"), "athena")
+        self.assertEqual(tier("+++ b/db/migrations/012_users.sql\n+ALTER TABLE users ADD COLUMN email text;\n"), "athena")
+        self.assertEqual(tier("+++ b/src/repo.ts\n+await db.insert(newsletter).values({ email })\n"), "athena")
         # Mentioning an email outside storage is not a signal.
-        self.assertEqual(tier("+++ b/src/ui/Footer.tsx\n+<a href={`mailto:${email}`}>Contact</a>\n"), "remy")
+        self.assertEqual(tier("+++ b/src/ui/Footer.tsx\n+<a href={`mailto:${email}`}>Contact</a>\n"), "artemis")
         # Repositories can name their own production API.
-        self.assertEqual(tier("+++ b/src/bff.ts\n+await bffClient.orders.get(id)\n", {"production api": r"\bbffClient\b"}), "remy+")
+        self.assertEqual(tier("+++ b/src/bff.ts\n+await bffClient.orders.get(id)\n", {"production api": r"\bbffClient\b"}), "athena")
 
     def test_packet_records_the_security_tier(self):
         write(os.path.join(self.repo, "src", "auth.py"), "def login(password): ...\n")
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-qm", "auth")
         out = os.path.join(self.tmp.name, "sec")
-        review_packet.main(["--repo", self.repo, "--base", "main", "--roles", "remy", "--runtime", "codex", "--out", out])
+        review_packet.main(["--repo", self.repo, "--base", "main", "--roles", "artemis", "--runtime", "codex", "--out", out])
         manifest = json.load(open(os.path.join(out, "manifest.json")))
-        self.assertEqual(manifest["security"]["tier"], "remy+")
-        self.assertEqual(manifest["roles"]["remy"]["model"], "gpt-6.1-sol")
-        self.assertEqual(manifest["roles"]["remy"]["effort"], "high")
-        self.assertEqual(manifest["roles"]["remy"]["label"], "Remy · Security review (sensitive) · Sol high")
-        self.assertIn("Remy uses the `remy+` row: authentication", open(os.path.join(out, "self-check.md")).read())
+        self.assertEqual(manifest["security"]["tier"], "athena")
+        self.assertEqual(manifest["roles"]["athena"]["model"], "gpt-6.1-sol")
+        self.assertEqual(manifest["roles"]["athena"]["effort"], "high")
+        self.assertEqual(manifest["roles"]["athena"]["label"], "Athena · Security review (sensitive) · Sol high")
+        self.assertIn("Athena uses the `athena` row: authentication", open(os.path.join(out, "self-check.md")).read())
+
+    def test_legacy_names_produce_new_packet_identities_without_renaming_models(self):
+        out = os.path.join(self.tmp.name, "legacy")
+        review_packet.main(["--repo", self.repo, "--base", "main", "--roles", "maya,theo,luna,remy+,pandora",
+                            "--runtime", "codex", "--out", out])
+        manifest = json.load(open(os.path.join(out, "manifest.json")))
+        self.assertEqual(manifest["security"]["tier"], "athena")
+        roles = manifest["roles"]
+        self.assertEqual(list(roles), ["pandora", "daedalus", "ariadne", "athena"])
+        self.assertEqual(roles["ariadne"]["model"], "gpt-6-luna")
+        self.assertEqual(roles["athena"]["model"], "gpt-6.1-sol")
+        self.assertTrue(os.path.isfile(os.path.join(out, "prompts", "pandora.md")))
+        self.assertFalse(os.path.exists(os.path.join(out, "prompts", "maya.md")))
 
     def test_stale_terms_fail_the_self_check(self):
         code, out = self.run_packet("--stale", "runs at medium")
@@ -153,9 +166,9 @@ class MergeFindingsTest(unittest.TestCase):
         return path
 
     def test_groups_nearby_findings_and_reports_blocking(self):
-        a = self.result("finn", {"role": "guidelines", "head": "abc", "status": "complete", "findings": [
+        a = self.result("themis", {"role": "guidelines", "head": "abc", "status": "complete", "findings": [
             {"file": "/repo/AGENTS.md", "line": 10, "severity": "important", "impact": "stale sentence"}]})
-        b = self.result("jasper", {"role": "comments", "head": "abc", "status": "complete", "findings": [
+        b = self.result("mnemosyne", {"role": "comments", "head": "abc", "status": "complete", "findings": [
             {"file": "AGENTS.md", "line": 12, "severity": "minor", "impact": "same sentence"},
             {"file": "src/x.ts", "line": 3, "severity": "nit", "impact": "typo"}]}, prose=False)
         code = merge_findings.main([a, b, "--head", "abc", "--repo-root", "/repo", "--out", self.tmp.name])
@@ -167,15 +180,15 @@ class MergeFindingsTest(unittest.TestCase):
         self.assertIn("| G1 | important |", open(os.path.join(self.tmp.name, "findings.md")).read())
 
     def test_incomplete_or_stale_roles_block_the_gate(self):
-        a = self.result("maya", {"role": "bugs", "head": "old", "status": "complete", "findings": []})
-        b = self.result("nora", {"role": "types", "head": "abc", "status": "incomplete", "findings": []})
+        a = self.result("pandora", {"role": "bugs", "head": "old", "status": "complete", "findings": []})
+        b = self.result("proteus", {"role": "types", "head": "abc", "status": "incomplete", "findings": []})
         self.assertEqual(merge_findings.main([a, b, "--head", "abc", "--out", self.tmp.name]), 1)
         summary = json.load(open(os.path.join(self.tmp.name, "findings.json")))["summary"]
         self.assertFalse(summary["complete"])
         self.assertEqual(len(summary["problems"]), 2)
 
     def test_clean_complete_review_passes(self):
-        a = self.result("maya", {"role": "bugs", "head": "abc", "status": "complete", "findings": []})
+        a = self.result("pandora", {"role": "bugs", "head": "abc", "status": "complete", "findings": []})
         self.assertEqual(merge_findings.main([a, "--head", "abc", "--out", self.tmp.name]), 0)
 
 

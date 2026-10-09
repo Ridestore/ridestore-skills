@@ -6,7 +6,7 @@ runs: 3
 execution:
   prompt: |
     /pr-shepherd Context: I asked you to make every GPT-6 Luna call run at reasoning effort high. You implemented it and the local review finished.
-    Felix's finding (supported): when a Luna call fails on the gateway, the service retries once on GPT-6.1 Sol with the same effort, so the fallback now runs Sol at high instead of medium. That raises cost on a rare path; my request only mentioned Luna.
+    Odysseus's finding (supported): when a Luna call fails on the gateway, the service retries once on GPT-6.1 Sol with the same effort, so the fallback now runs Sol at high instead of medium. That raises cost on a rare path; my request only mentioned Luna.
     Everything else is fixed. What do you do next? Don't run tools; answer in prose.
   max_turns: 4
   timeout_seconds: 300

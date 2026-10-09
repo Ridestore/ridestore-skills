@@ -1,11 +1,11 @@
 # Codex role/model matrix
 
-Matrix revision: 2026-10-09 (skill 2.4.2), cost profile: GPT-6.1 Sol only where
-it matters most, bugs (Maya, medium) and sensitive security (Remy+, high, one step
-above routine Remy; see [roles](roles.md)). Every other role runs GPT-6 Luna, at
+Matrix revision: 2026-10-10 (skill 2.5.0), cost profile: GPT-6.1 Sol only where
+it matters most, bugs (Pandora, medium) and sensitive security (Athena, high, one step
+above routine Artemis; see [roles](roles.md)). Every other role runs GPT-6 Luna, at
 xhigh for the general roles and at high (it never runs below high) for types, code
-quality, language and verification. Sol is the expensive model. Felix on Luna also
-gives the independent pass a different model than Maya's.
+quality, language and verification. Sol is the expensive model. Odysseus on Luna also
+gives the independent pass a different model than Pandora's.
 This skill does not use `gpt-6-astra`.
 Last verified: 2026-10-07 — GPT-6.1 Sol/high native review calls ran on Codex;
 the other model/effort combinations are policy, not observed runs. Check with
@@ -17,21 +17,21 @@ takes precedence. Do not change the coordinator's model or reasoning setting.
 | Role | Default model | Effort |
 | --- | --- | --- |
 | Coordinator | Current parent Codex model; recommended `gpt-6.1-sol` for a newly user-configured session | Inherit parent |
-| Finn — guidelines | `gpt-6-luna` | xhigh |
-| Maya — bugs / incremental fix check | `gpt-6.1-sol` | medium |
-| Theo — architecture | `gpt-6-luna` | xhigh |
-| Nora — types | `gpt-6-luna` | high |
-| Jasper — comments and intent | `gpt-6-luna` | xhigh |
-| Felix — independent reviewer | `gpt-6-luna` | xhigh |
-| Remy — security, routine | `gpt-6-luna` | xhigh |
-| Remy+ — security: auth, permissions, trust boundaries, secrets, infra, cross-service | `gpt-6.1-sol` | high |
-| Ruby — performance | `gpt-6-luna` | xhigh |
-| Oscar — code quality | `gpt-6-luna` | high |
-| Iris — language | `gpt-6-luna` | high |
-| Zoe / Cleo — reflection and debate | `gpt-6-luna` | xhigh |
-| Vera — verification | `gpt-6-luna` | high |
-| Otis / Milo / Luna — fact check, confidence, reachability | `gpt-6-luna` | xhigh |
-| Ada / Eli / Sofia / Hugo / Max — optional companion duties | Coordinator, or `gpt-6-luna` if separately delegated | high |
+| Themis — guidelines | `gpt-6-luna` | xhigh |
+| Pandora — bugs / incremental fix check | `gpt-6.1-sol` | medium |
+| Daedalus — architecture | `gpt-6-luna` | xhigh |
+| Proteus — types | `gpt-6-luna` | high |
+| Mnemosyne — comments and intent | `gpt-6-luna` | xhigh |
+| Odysseus — independent reviewer | `gpt-6-luna` | xhigh |
+| Artemis — security, routine | `gpt-6-luna` | xhigh |
+| Athena — security: auth, permissions, trust boundaries, secrets, infra, cross-service | `gpt-6.1-sol` | high |
+| Icarus — performance | `gpt-6-luna` | xhigh |
+| Hephaestus — code quality | `gpt-6-luna` | high |
+| Palamedes — language | `gpt-6-luna` | high |
+| Psyche / Harmonia — reflection and debate | `gpt-6-luna` | xhigh |
+| Theseus — verification | `gpt-6-luna` | high |
+| Aletheia / Metis / Ariadne — fact check, confidence, reachability | `gpt-6-luna` | xhigh |
+| Calliope / Prometheus / Cadmus / Cassandra / Peitho — optional companion duties | Coordinator, or `gpt-6-luna` if separately delegated | high |
 
 ## Dispatch
 
@@ -51,7 +51,7 @@ takes precedence. Do not change the coordinator's model or reasoning setting.
   "fork_turns": "none",
   "model": "gpt-6.1-sol",
   "reasoning_effort": "medium",
-  "message": "<contents of prompts/maya.md from the review packet>"
+  "message": "<contents of prompts/pandora.md from the review packet>"
 }
 ```
 
