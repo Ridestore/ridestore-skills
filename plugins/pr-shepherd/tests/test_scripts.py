@@ -108,7 +108,8 @@ class ReviewPacketTest(unittest.TestCase):
         review_packet.main(["--repo", self.repo, "--base", "main", "--roles", "remy", "--runtime", "codex", "--out", out])
         manifest = json.load(open(os.path.join(out, "manifest.json")))
         self.assertEqual(manifest["security"]["tier"], "remy+")
-        self.assertEqual(manifest["roles"]["remy"]["model"], "gpt-6-astra")
+        self.assertEqual(manifest["roles"]["remy"]["model"], "gpt-6.1-sol")
+        self.assertEqual(manifest["roles"]["remy"]["effort"], "xhigh")
         self.assertIn("Remy uses the `remy+` row: authentication", open(os.path.join(out, "self-check.md")).read())
 
     def test_stale_terms_fail_the_self_check(self):
@@ -192,7 +193,7 @@ class OpenCodeProfileTest(unittest.TestCase):
         opus = open(os.path.join(root, "pr-shepherd-opus.md")).read()
         sol = open(os.path.join(root, "pr-shepherd-sol.md")).read()
         self.assertIn("model: deepseek/deepseek-flash", opus)
-        self.assertIn("model: deepseek/deepseek-v4-pro", open(os.path.join(root, "pr-shepherd-astra.md")).read())
+        self.assertIn("model: deepseek/deepseek-flash", open(os.path.join(root, "pr-shepherd-sol-xhigh.md")).read())
         self.assertIn("model: deepseek/deepseek-flash", sol)
         self.assertNotIn("reasoningEffort", sol)
         self.assertIn("pr-shepherd-managed-copy", sol)

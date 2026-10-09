@@ -3,9 +3,9 @@
 Matrix revision: 2026-10-09 (skill 2.0.0), local quality profile: the same
 models per role as a production server-side reviewer's normal policy, one
 reasoning-effort step higher (medium → high; xhigh stays xhigh), except Maya
-and Theo, who keep that policy's Sol/medium for speed. `gpt-6-astra`
-only for sensitive security reviews (Remy+, see [roles](roles.md)), at medium at
-most: Astra's stronger model at medium is enough there, and it costs 5× Sol.
+and Theo, who keep that policy's Sol/medium for speed. Sensitive security
+reviews (Remy+, see [roles](roles.md)) run Sol at xhigh, one step above routine
+Remy; this skill does not use `gpt-6-astra`.
 `gpt-6-luna` never runs below high.
 Last verified: 2026-10-07 — GPT-6.1 Sol/high native review calls ran on Codex;
 the other model/effort combinations are policy, not observed runs. Check with
@@ -24,7 +24,7 @@ takes precedence. Do not change the coordinator's model or reasoning setting.
 | Jasper — comments and intent | `gpt-6.1-sol` | high |
 | Felix — independent reviewer | `gpt-6.1-sol` | high |
 | Remy — security, routine | `gpt-6.1-sol` | high |
-| Remy+ — security: auth, permissions, trust boundaries, secrets, infra, cross-service | `gpt-6-astra` | medium |
+| Remy+ — security: auth, permissions, trust boundaries, secrets, infra, cross-service | `gpt-6.1-sol` | xhigh |
 | Ruby — performance | `gpt-6.1-sol` | high |
 | Oscar — code quality | `gpt-6-luna` | xhigh |
 | Iris — language | `gpt-6-luna` | xhigh |

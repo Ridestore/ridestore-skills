@@ -19,13 +19,8 @@ REQUIRED = ("SKILL.md", "agents/openai.yaml", "scripts/install.py",
 
 
 # OpenCode fallback when neither OpenAI (GPT) nor Anthropic (Claude) is connected:
-# DeepSeek first, then GLM. Flash everywhere; V4-Pro only for Remy+.
-OPENCODE_PROFILES = {
-    "deepseek": {"strong": "deepseek/deepseek-v4-pro", "fast": "deepseek/deepseek-flash"},
-    "glm": {"strong": "zhipuai/glm-5.3", "fast": "zhipuai/glm-5.3"},
-}
-# Only sensitive security (Remy+, the astra agent) needs the stronger model.
-STRONG_OPENCODE_AGENTS = {"pr-shepherd-astra"}
+# DeepSeek first, then GLM; one model for every role.
+OPENCODE_PROFILES = {"deepseek": "deepseek/deepseek-flash", "glm": "zhipuai/glm-5.3"}
 MANAGED_COPY = "# pr-shepherd-managed-copy"
 PROVIDER_ENV = {"openai": ["OPENAI_API_KEY"], "anthropic": ["ANTHROPIC_API_KEY"],
                 "deepseek": ["DEEPSEEK_API_KEY"], "glm": ["ZHIPU_API_KEY", "ZHIPUAI_API_KEY", "ZAI_API_KEY", "GLM_API_KEY"]}
@@ -54,8 +49,7 @@ def opencode_profile(found):
 
 def opencode_copy(agent, profile):
     """Agent file with the profile's model and no OpenAI-only reasoningEffort, marked as managed."""
-    model = OPENCODE_PROFILES[profile]["strong" if agent.stem in STRONG_OPENCODE_AGENTS else "fast"]
-    text = re.sub(r"^model: .*$", f"model: {model}", agent.read_text(), count=1, flags=re.M)
+    text = re.sub(r"^model: .*$", f"model: {OPENCODE_PROFILES[profile]}", agent.read_text(), count=1, flags=re.M)
     text = re.sub(r"^reasoningEffort: .*\n", "", text, flags=re.M)
     return text.replace("---\n", f"---\n{MANAGED_COPY} ({profile})\n", 1)
 

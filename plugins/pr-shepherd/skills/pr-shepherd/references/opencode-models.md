@@ -21,7 +21,7 @@ differ. Codex-side roles keep the Codex matrix's models and efforts.
 | Jasper — comments and intent | `openai/gpt-6.1-sol` | high | pr-shepherd-sol |
 | Felix — independent reviewer | `openai/gpt-6.1-sol` | high | pr-shepherd-sol |
 | Remy — security, routine | `openai/gpt-6.1-sol` | high | pr-shepherd-sol |
-| Remy+ — security: auth, permissions, trust boundaries, secrets, infra, cross-service | `openai/gpt-6-astra` | medium | pr-shepherd-astra |
+| Remy+ — security: auth, permissions, trust boundaries, secrets, infra, cross-service | `openai/gpt-6.1-sol` | xhigh | pr-shepherd-sol-xhigh |
 | Ruby — performance | `openai/gpt-6.1-sol` | high | pr-shepherd-sol |
 | Oscar — code quality | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |
 | Iris — language | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |
@@ -43,7 +43,7 @@ sections in `opencode.json(c)`):
 | Connected | Reviewer models |
 | --- | --- |
 | OpenAI (GPT) or Anthropic (Claude) | the table above, linked unchanged |
-| neither, but DeepSeek | `deepseek/deepseek-flash` for every role except Remy+ (sensitive security), which uses `deepseek/deepseek-v4-pro` |
+| neither, but DeepSeek | `deepseek/deepseek-flash` for every role |
 | none of those, but GLM (`zhipuai`/`zai`) | `zhipuai/glm-5.3` for every role |
 | none of these | the table above, with a warning in the plan that providers are missing |
 
