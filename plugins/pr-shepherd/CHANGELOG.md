@@ -27,7 +27,8 @@
   minified bundles only `linguist-*` is harmless), a file git still shows as
   binary that is not such an asset or output (committed `dist/` bundles,
   lockfiles and minified files count), and a committed key, certificate or
-  credential file (`.env`, `.npmrc`, `.netrc`, keytabs, service-account JSON),
+  credential file (`.env`, `.npmrc`, `.netrc`, `.aws/credentials`, Terraform
+  state and tfvars, kubeconfig, keytabs, service-account JSON),
   also under tests, route Remy+.
 - Repository signals (`--security-signal` and `--specialist-signal`) are
   recorded as `repo: NAME`: they add to the built-in signals and can no longer

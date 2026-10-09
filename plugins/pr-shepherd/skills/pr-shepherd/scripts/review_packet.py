@@ -186,7 +186,7 @@ _GENERATED = r"(^|/)(__generated__|generated|__snapshots__)/|\.generated\.|_pb2\
 HIDDEN_BY_DESIGN = re.compile(r"\.(map|snap)$|" + _GENERATED, re.I)
 # Lockfiles and minified bundles are often collapsed too, but they install or ship code: hiding
 # their lines in git diff (-diff, binary, filter=) counts; only GitHub's linguist-* is harmless.
-SHIPPED_OUTPUT = re.compile(r"(^|/)(" + _LOCKFILES + r")$|\.min\.(js|css)$", re.I)
+SHIPPED_OUTPUT = re.compile(r"(^|/)(" + _LOCKFILES + r")$|\.(lock|lockfile)$|(^|/)Package\.resolved$|\.min\.(js|css)$", re.I)
 GITATTRIBUTES = re.compile(r"(^|/)\.gitattributes$")
 # Attributes that never hide or collapse a file's lines; anything else (-diff,
 # binary, filter=, linguist-generated, a macro) can, now or in a later PR.
@@ -198,9 +198,13 @@ HARMLESS_ATTRIBUTES = {"text", "eol", "crlf", "whitespace", "working-tree-encodi
 KEY_FILE = re.compile(r"\.(p12|pfx|jks|keystore|pem|key|der|ppk|p8|crt|cer|gpg|kdbx)$|(^|/)id_(rsa|dsa|ecdsa|ed25519)(?:_[a-z0-9_-]+)?$", re.I)
 
 
+TRANSLATION_DIR = re.compile(r"(^|/)(locales?|i18n|translations?|messages|lang)/", re.I)  # i18n namespaces such as credentials.json
 # Committed credential stores and env files (not the .example/.sample/.template kind).
-CREDENTIAL_FILE = re.compile(r"(^|/)\.env(\.(?!example$|sample$|template$|dist$)[^/]+)?$|(^|/)\.(npmrc|netrc|pgpass|pypirc|dockercfg)$|\.keytab$"
-                             r"|(^|/)(credentials|service[-_]account[^/]*|client_secret[^/]*)\.json$|(^|/)\.docker/config\.json$", re.I)
+CREDENTIAL_FILE = re.compile(
+    r"(^|/)\.env(\.(?!(?:[^/]*\.)?(?:example|sample|template|dist)$)[^/]+)?$|(^|/)\.envrc$"
+    r"|(^|/)\.(npmrc|netrc|pgpass|pypirc|dockercfg|git-credentials|htpasswd)$|(^|/)\.aws/credentials$|(^|/)\.docker/config\.json$"
+    r"|\.keytab$|\.tfstate(\.backup)?$|(?<!\.example)\.tfvars$|(^|/)kubeconfig[^/]*$"
+    r"|(^|/)(credentials|service[-_]account[^/]*|client_secret[^/]*)\.json$", re.I)
 
 
 def _hides_source(path):
@@ -222,7 +226,8 @@ def _hides_lines(attribute_line):
     if not tokens or tokens[0].startswith("#"):
         return False
     pattern, attributes = tokens[0], tokens[1:]
-    exact = not pattern.startswith("[attr]") and not pattern.endswith(("/", "*"))
+    # A glob class or escape ([...], ?, \) can make a harmless-looking name match any file.
+    exact = not pattern.startswith("[attr]") and not pattern.endswith(("/", "*")) and not any(c in pattern for c in "[?\\")
     if exact and (BINARY_ASSET.search(pattern) or HIDDEN_BY_DESIGN.search(pattern)):
         return False
     shipped = exact and SHIPPED_OUTPUT.search(pattern)
@@ -247,10 +252,11 @@ def security_tier(diff_text, extra_signals=None):
     is not an auth change), otherwise 'remy'. Cross-service: signals in 2+ top-level dirs.
     Whole lines are scanned (the patterns are linear), deleted and renamed files
     count by path, and repository signals are added as 'repo: NAME', never
-    replacing a built-in one. A .gitattributes line that can hide source (-diff,
-    binary), a file git shows as binary that is not an asset or output hidden
-    by design (its lines are hidden), or a committed key or certificate file
-    also gives remy+."""
+    replacing a built-in one. Also remy+: an added .gitattributes line that can
+    hide or collapse source (-diff, binary, filter=, linguist-generated, a macro;
+    see _hides_lines), a file git shows as binary that is not an asset, map,
+    snapshot or generated output (lockfiles and minified bundles count), and a
+    committed key, certificate or credential file, even under tests."""
     signals = {name: re.compile(p, re.I | re.M) for name, p in SECURITY_SIGNALS.items()}
     signals.update(_repo_signals(extra_signals, re.I | re.M))
     matches = {}
@@ -261,7 +267,7 @@ def security_tier(diff_text, extra_signals=None):
             matches.setdefault("diff attributes", set()).add(path)
         if kind == "file" and KEY_FILE.search(path):
             matches.setdefault("key or certificate file", set()).add(path)
-        if kind == "file" and CREDENTIAL_FILE.search(path):
+        if kind == "file" and CREDENTIAL_FILE.search(path) and not TRANSLATION_DIR.search(path):
             matches.setdefault("credential file", set()).add(path)
         if kind not in ("file", "add") or NOT_CODE.search(path):
             continue
@@ -338,7 +344,7 @@ LOOP_HEAD = re.compile(r"^\s*(?:async\s+)?(?:for(?:each)?|while)\b|\.(?:for_each
     # Ruby iterators need a Ruby block (do ... or { |x| ...), so `if (checkout.step) {` is no loop.
     r"|\.(?:(?:\w{1,20}_)?each(?:_\w{1,20}|[A-Z]\w{0,20})?|times|upto|step|map|flat_map|select|reject)\b[^\n]{0,80}"
     r"(?:\bdo(?:\s*\|[^|]{0,40}\|)?|\{\s*\|[^|]{0,40}\|)\s*$"
-    r"|^\s*(?:until\b(?!\s*[:=(])|loop\s+do\b)|\.(?:in_batches|find_in_batches|downto)\b[^\n]{0,80}\bdo\b"
+    r"|^\s*(?:until\b(?!\s*[:=])(?!\()|loop\s+do\b)|\.(?:in_batches|find_in_batches|downto)\b[^\n]{0,80}\bdo\b"
     r"|\.(?:each|map|flatMap|filter|reduce|some|every|forEach)\(\s*(?:[\w$.]{1,40},\s*)?(?:async\s+)?function\b[^\n]{0,80}\{\s*$|^\s*(?:do|loop)\s*\{|\.(?:each|map|flatMap|filter|reduce|some|every|forEach)\(\s*(?:[\w$.]{1,40},\s*)?(?:async\b|\(?[^()=\n]{0,80}\)?\s*(?::[^=\n]{1,60})?=>\s*\{\s*$)")
 LOOP_COST = re.compile(_SQL + "|" + _ORM + "|" + _NET + r"|\bawait\b")
 LOOP_MAX = 40  # body lines followed after a loop header
