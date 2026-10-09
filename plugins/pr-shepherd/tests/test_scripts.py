@@ -204,6 +204,12 @@ class ReviewPacketTest(unittest.TestCase):
         ("oscar", "escape hatches and dynamic code", "src/a.ts", "type Props = { cb: any }"),
         ("oscar", "escape hatches and dynamic code", "src/a.ts", "x as any // legacy"),
         ("oscar", "escape hatches and dynamic code", "src/a.ts", "export function load(): any {"),
+        ("oscar", "escape hatches and dynamic code", "src/a.ts", "const f: () => any = g"),
+        ("iris", "error handling and resource cleanup", "src/a.ts", "using file = openFile(p);"),
+        ("iris", "error handling and resource cleanup", "src/a.cs", "using (StreamReader r = new StreamReader(p)) {"),
+        ("iris", "error handling and resource cleanup", "src/a.cs", "using FileStream f = File.Open(p);"),
+        ("oscar", "escape hatches and dynamic code", "src/a.ts", "type Pair = [any, string]"),
+        ("ruby", "network call", "app/a.rb", "res = Net::HTTP.get(uri)"),
         ("iris", "error handling and resource cleanup", "src/a.cs", "using (var conn = new SqlConnection(cs)) {"),
         ("oscar", "escape hatches and dynamic code", "src/a.py", "    global counter"),
         ("iris", "shell", "bin/run", "#!/usr/bin/env bash"),
@@ -263,6 +269,10 @@ class ReviewPacketTest(unittest.TestCase):
         ("src/a.ts", "// treat as any other request"),
         ("src/a.ts", "const note = 'pick any of these'"),
         ("src/a.cs", "using Json = System.Text.Json;"),
+        ("src/a.ts", "const hint = 'Log in as any user'"),
+        ("web/A.tsx", '<input placeholder="Brand (any)" />'),
+        ("web/A.tsx", "<p>Pick a size, any size works</p>"),
+        ("src/a.ts", "const label = { title: 'Size: any' }"),
     ]
 
     def test_every_documented_signal_routes_its_role(self):
@@ -285,7 +295,8 @@ class ReviewPacketTest(unittest.TestCase):
         php = "+++ b/src/a.php\n@@ -0,0 +1,3 @@\n+foreach ($ids as $id) {\n+    $rows[] = $pdo->query($sql);\n+}\n"
         self.assertIn(name, spec(php).get("ruby", {}))
         rb = "+++ b/app/a.rb\n@@ -0,0 +1,3 @@\n+ids.each do |id|\n+  Net::HTTP.get(uri)\n+end\n"
-        self.assertIn(name, spec(rb.replace("Net::HTTP.get(uri)", "rows << db.execute(sql)")).get("ruby", {}))
+        self.assertIn(name, spec(rb).get("ruby", {}))
+        self.assertIn(name, spec(rb.replace("ids.each do", "User.find_each do")).get("ruby", {}))
         # After the loop has closed, or after a one-line .map, an await is sequential code.
         self.assertNotIn(name, spec(hunk("const ids = rows.map(r => r.id)", "await save(ids)")).get("ruby", {}))
         self.assertNotIn(name, spec(hunk("for (const x of xs) { total += x }", "const r = await load()")).get("ruby", {}))
@@ -368,6 +379,8 @@ class ReviewPacketTest(unittest.TestCase):
         # Pasted diffs without 'diff --git': a new file does not make the next one new.
         pasted = "--- /dev/null\n+++ b/a.py\n+x = 1\n--- a/b.py\n+++ b/b.py\n" + "".join(f"+y{i} = {i}\n" for i in range(300))
         self.assertFalse(any(n.startswith("large new file") for n in spec(pasted).get("oscar", {})))
+        after_delete = "--- a/old.sh\n+++ /dev/null\n-x\n--- a/Dockerfile\n+++ b/Dockerfile\n+RUN true\n"
+        self.assertIn("container", spec(after_delete)["iris"])
 
     def test_container_ci_and_prose_lines_route_no_ruby_or_oscar(self):
         spec = review_packet.specialist_signals
@@ -422,8 +435,24 @@ class ReviewPacketTest(unittest.TestCase):
         manifest = json.load(open(os.path.join(out, "manifest.json")))
         self.assertEqual(manifest["security"]["tier"], "remy+")
         self.assertIn("diff attributes", manifest["security"]["signals"])
-        hidden = "diff --git a/src/x.ts b/src/x.ts\nindex 1..2 100644\nBinary files a/src/x.ts and b/src/x.ts differ\n"
-        self.assertIn("hidden source content", review_packet.security_tier(hidden)[1])
+        binary = lambda p: f"diff --git a/{p} b/{p}\nindex 1..2 100644\nBinary files a/{p} and b/{p} differ\n"
+        for path in ("src/x.ts", "web/index.html", "Dockerfile", "deploy/app.yaml"):
+            with self.subTest(path=path):
+                self.assertIn("hidden source content", review_packet.security_tier(binary(path))[1])
+        for path in ("web/logo.png", "fonts/a.woff2", "dist/app.min.js", "src/generated/api.ts"):
+            with self.subTest(path=path):
+                self.assertNotIn("hidden source content", review_packet.security_tier(binary(path))[1])
+        # Only attributes that change what a diff shows count.
+        self.assertEqual(review_packet.security_tier("+++ b/.gitattributes\n+* text=auto eol=lf\n")[0], "remy")
+        self.assertEqual(review_packet.security_tier("+++ b/.gitattributes\n+*.ts -diff\n")[0], "remy+")
+        # A fix check reads attributes from the merge base too.
+        head = subprocess.run(["git", "-C", self.repo, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+        write(os.path.join(self.repo, "src", "a.py"), "token = jwt.decode(t, verify=False)\nresp = requests.get(url)\n")
+        git(self.repo, "commit", "-qam", "fix")
+        out2 = os.path.join(self.tmp.name, "attr2")
+        review_packet.main(["--repo", self.repo, "--base", "main", "--roles", "maya", "--runtime", "claude",
+                            "--previous-head", head, "--out", out2])
+        self.assertIn("+resp = requests.get(url)", open(os.path.join(out2, "fix-diff.patch")).read())
 
     def test_lone_carriage_return_does_not_shift_hunks(self):
         path = os.path.join(self.repo, "src", "cr.py")
