@@ -36,8 +36,9 @@ code quality and language and at medium for the rest. Felix on Sonnet also gives
 the independent pass a different model than Maya's, so their blind spots differ.
 Everything runs one effort step lower than before: on a real Deep review
 (2026-10-09) Opus at high took about 6.5 minutes and Sonnet at xhigh about 8.
-Maya and Theo have run at medium since 2.1.0. Whether medium finds as much is
-not measured yet; the xhigh and Opus-high definitions were removed.
+Maya has run at medium since 2.1.0 (Theo did too until it moved to Sonnet in
+2.4.0). Whether medium finds as much is not measured yet; the xhigh and Opus-
+high definitions were removed.
 
 ## Dispatch
 
