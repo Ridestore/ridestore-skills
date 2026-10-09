@@ -301,7 +301,10 @@ class CheckMatrixTest(unittest.TestCase):
         skill = os.path.join(ROOT, "skills", "pr-shepherd")
         mutations = {"reasoningEffort: max": "reasoningEffort: high", "maxDepth: 1": "maxDepth: 2",
                      "allow: [read, grep, glob]": "allow: [read, grep, glob, bash]",
-                     "provider: deepseek-official": "provider: openai"}
+                     "provider: deepseek-official": "provider: openai",
+                     "reasoningEffort: high": "reasoningEffort: medium",
+                     "toolName: pr_shepherd_flash_max": "toolName: pr_shepherd_flash",
+                     "maxDepth: 1\n        persona": "maxDepth: 1\n        modelSelectionSettings: true\n        persona"}
         for old, new in mutations.items():
             with tempfile.TemporaryDirectory() as tmp:
                 copy = os.path.join(tmp, "pr-shepherd")

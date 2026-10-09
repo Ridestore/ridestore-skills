@@ -42,14 +42,18 @@ def frontmatter(path):
     return dict(re.findall(r"^(\w+):\s*(.+)$", m.group(1), re.M)) if m else {}
 
 
+DSH_EFFORTS = {"off", "low", "high", "max"}
+
+
 def dsh_tools(path):
-    """toolName -> settings of each pr-shepherd row in the dsh patch fragment."""
-    tools = {}
+    """(toolName, settings) for each pr-shepherd row in the dsh patch fragment."""
+    tools = []
     for block in re.split(r"^\s*- id: ", open(path, encoding="utf-8").read(), flags=re.M)[1:]:
         get = lambda key: (re.search(r"^\s*" + key + r":\s*(.+)$", block, re.M) or [None, None])[1]
-        tools[get("toolName")] = {"model": get("model"), "effort": get("reasoningEffort"),
-                                  "llm": re.findall(r"^\s+provider:\s*(\S+)", block, re.M),
-                                  "allow": get("allow"), "depth": get("maxDepth")}
+        tools.append((get("toolName"), {"model": get("model"), "effort": get("reasoningEffort"),
+                                        "llm": re.findall(r"^\s+provider:\s*(\S+)", block, re.M),
+                                        "allow": get("allow"), "depth": get("maxDepth"),
+                                        "selection": get("modelSelectionSettings")}))
     return tools
 
 
@@ -109,7 +113,11 @@ def main(argv=None):
             errors.append(f"agents/opencode/{os.path.basename(path)} is not used by references/opencode-models.md")
 
     patch = os.path.join(args.skill_dir, "agents", "dsh", "cordis.patch.yml")
-    tools = dsh_tools(patch) if os.path.isfile(patch) else {}
+    rows = dsh_tools(patch) if os.path.isfile(patch) else []
+    names = [name for name, _ in rows]
+    for name in sorted({str(n) for n in names if not n or names.count(n) > 1}):
+        errors.append(f"agents/dsh/cordis.patch.yml: toolName {name} is missing or used twice")
+    tools = {name: tool for name, tool in rows if name}
     dsh_used = set()
     for cells in table_rows(os.path.join(refs, "dsh-models.md")):
         if len(cells) < 4 or not re.fullmatch(r"[a-z0-9_]+", cells[3]):
@@ -127,6 +135,10 @@ def main(argv=None):
             errors.append(f"agents/dsh/cordis.patch.yml: {name} is not used by references/dsh-models.md")
         if tool["llm"] != ["spawn", "deepseek-official"] or not str(tool["model"]).startswith("deepseek-"):
             errors.append(f"agents/dsh/cordis.patch.yml: {name} must use the spawn provider and a deepseek-official model")
+        if tool["effort"] not in DSH_EFFORTS:
+            errors.append(f"agents/dsh/cordis.patch.yml: {name} effort {tool['effort']} is not one of off, low, high, max")
+        if tool["selection"] not in (None, "false"):
+            errors.append(f"agents/dsh/cordis.patch.yml: {name} must not enable modelSelectionSettings")
         if tool["allow"] != "[read, grep, glob]" or tool["depth"] != "1":
             errors.append(f"agents/dsh/cordis.patch.yml: {name} must allow only [read, grep, glob] at maxDepth 1")
 
