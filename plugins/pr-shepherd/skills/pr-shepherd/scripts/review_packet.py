@@ -203,7 +203,8 @@ TRANSLATION_DIR = re.compile(r"(^|/)(locales?|i18n|translations?|messages|lang)/
 CREDENTIAL_FILE = re.compile(
     r"(^|/)\.env(\.(?!(?:[^/]*\.)?(?:example|sample|template|dist)$)[^/]+)?$|(^|/)\.envrc$"
     r"|(^|/)\.(npmrc|netrc|pgpass|pypirc|dockercfg|git-credentials|htpasswd)$|(^|/)\.aws/credentials$|(^|/)\.docker/config\.json$"
-    r"|\.keytab$|\.tfstate(\.backup)?$|(?<!\.example)\.tfvars$|(^|/)kubeconfig[^/]*$"
+    r"|\.keytab$|\.tfstate(\.backup)?$|(?<!\.example)(?<!\.sample)(?<!\.template)\.tfvars(\.json)?$"
+    r"|(^|/)\.kube/config$|(^|/)kubeconfig(?:[-_][\w-]{1,40})?(?:\.(?:ya?ml|json|conf))?$"
     r"|(^|/)(credentials|service[-_]account[^/]*|client_secret[^/]*)\.json$", re.I)
 
 
@@ -267,7 +268,8 @@ def security_tier(diff_text, extra_signals=None):
             matches.setdefault("diff attributes", set()).add(path)
         if kind == "file" and KEY_FILE.search(path):
             matches.setdefault("key or certificate file", set()).add(path)
-        if kind == "file" and CREDENTIAL_FILE.search(path) and not TRANSLATION_DIR.search(path):
+        if kind == "file" and CREDENTIAL_FILE.search(path) and not (
+                TRANSLATION_DIR.search(path) and path.lower().endswith("/credentials.json")):
             matches.setdefault("credential file", set()).add(path)
         if kind not in ("file", "add") or NOT_CODE.search(path):
             continue

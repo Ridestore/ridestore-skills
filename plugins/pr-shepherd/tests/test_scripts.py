@@ -467,11 +467,13 @@ class ReviewPacketTest(unittest.TestCase):
                 self.assertNotIn("key or certificate file", review_packet.security_tier(f"+++ b/{path}\n+x\n")[1])
         for path in (".env", ".env.production", "app/.npmrc", ".netrc", "deploy/svc.keytab", "gcp/service-account-prod.json",
                      ".aws/credentials", ".git-credentials", "infra/terraform.tfstate", "prod.tfvars", ".htpasswd", ".envrc",
-                     "ops/kubeconfig-prod"):
+                     "ops/kubeconfig-prod", ".kube/config", "services/messages/service-account.json", "env/prod.tfvars.json",
+                     "services/messages/.env.production", "ops/kubeconfig.yaml"):
             with self.subTest(path=path):
                 self.assertIn("credential file", review_packet.security_tier(f"+++ b/{path}\n+x\n")[1])
         for path in (".env.example", ".env.sample", "src/env.ts", ".env.local.example", ".env.production.template",
-                     "locales/en/credentials.json", "prod.example.tfvars"):
+                     "locales/en/credentials.json", "prod.example.tfvars", "prod.sample.tfvars", "docs/kubeconfig.md",
+                     "pkg/kubeconfig.go", "pkg/kubeconfig_test.go", "src/messages/.env.example"):
             with self.subTest(path=path):
                 self.assertNotIn("credential file", review_packet.security_tier(f"+++ b/{path}\n+x\n")[1])
         self.assertIn("key or certificate file", review_packet.security_tier(
