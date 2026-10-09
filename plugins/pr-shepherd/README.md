@@ -95,7 +95,7 @@ repository's `AGENTS.md` / `CLAUDE.md` (or in your workspace's instructions):
 
 | Setting | Example |
 | --- | --- |
-| Worktree manager | "Create task trees only with task-workspaces (`wsp ensure`)." |
+| Worktree manager | "Create task trees only with the installed workspace-manager skill." |
 | Verification | "Run `pnpm lint && pnpm test` in `web/`." |
 | Editorial exemptions | "Files under `site/src/content/pages/**/*.json` are editorial content." |
 | Review automation | "PRs are reviewed by our review bot; its approval of the exact head counts." |
