@@ -18,7 +18,10 @@ It refuses a dirty tree, records head/tree/target-tip/merge-base SHAs, exports
 the **entire** PR diff from the merge base (never just `HEAD~1`), lists the
 applicable `AGENTS.md`/`CLAUDE.md`/`REVIEW.md`, writes `self-check.md` and one
 prompt per role under `<git-path>/pr-shepherd-review/<head12>/`, outside tracked
-source. Without Python, do the same steps by hand.
+source. It also adds Ruby, Oscar or Iris when the change has a signal for them
+([routing](roles.md#routing)) and lists the matches under "Specialists required
+by signals" in `self-check.md`; keep them in the plan. Without Python, do the
+same steps by hand.
 
 ## 2. Self-check before dispatch
 

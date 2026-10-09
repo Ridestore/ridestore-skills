@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.5.0
+
+- Ruby (performance), Oscar (code quality) and Iris (language) are routed by
+  signals in the diff, like Remy+: `review_packet.py` adds each one to the plan
+  when changed code or config has a signal for it and records the matches in the
+  manifest (`specialists`) and `self-check.md`. Ruby covers queries, network
+  calls, work inside loops, handlers, pools and concurrency limits, caches,
+  timeouts and retries, blocking calls, module-level collections, pagination and
+  streams, migrations and indexes, frontend render work and runtime limits;
+  Oscar covers large or wide changes, deep nesting and escape hatches; Iris
+  covers shell, SQL, containers, CI, infrastructure, build config, styles,
+  regexes, dates and numbers, encoding, async semantics, type-system edges,
+  module systems, signal handling and mixed languages. Docs, tests, fixtures and
+  release version bumps are ignored. A fix check routes on the changes since
+  the reviewed head. `--specialist-signal ROLE:NAME=REGEX` adds repository
+  signals. Same for every runtime.
+
 ## 2.4.2
 
 - Claude: Opus only for Maya (bugs) and Remy+ (sensitive security); Theo and
