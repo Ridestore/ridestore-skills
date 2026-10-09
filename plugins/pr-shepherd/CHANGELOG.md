@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.4.2
+
+- Claude: Opus only for Maya (bugs) and Remy+ (sensitive security); Theo and
+  Felix move to `sonnet-reviewer-medium`, so the independent pass also runs on a
+  different model than the bug review.
+- Codex and OpenCode: GPT-6.1 Sol only for Maya (medium) and Remy+ (high); Finn,
+  Theo, Jasper, Felix, routine Remy, Ruby, Zoe, Cleo, Otis, Milo and Luna run
+  GPT-6 Luna at xhigh; Nora, Oscar, Iris and Vera stay on Luna at high. OpenCode
+  brings back `pr-shepherd-luna-xhigh` and retires `pr-shepherd-sol`, which the
+  installer removes when it created it.
+
 ## 2.4.1
 
 - Explicitly identify `task-workspaces` and its `task-workspaces:task-workspaces`
@@ -19,9 +30,9 @@
 - OpenCode DeepSeek fallback uses `deepseek-flash` for every role (no V4-Pro).
 - Faster reviews: every role runs one effort step lower (Deep-review roles at
   high/xhigh took 6–8 minutes each). Claude: Opus never above medium
-  and only for Maya and Remy+ (`opus-reviewer-medium`), Sonnet at medium (new
-  `sonnet-reviewer-medium`) for Theo, Felix, Finn, Jasper, routine Remy, Ruby,
-  Vera, Otis, Milo, Luna, Zoe and Cleo, Sonnet at high for Nora, Oscar and Iris;
+  (`opus-reviewer-medium` for Maya, Theo, Felix and Remy+), Sonnet at medium
+  (new `sonnet-reviewer-medium`) for Finn, Jasper, routine Remy, Ruby, Vera,
+  Otis, Milo, Luna, Zoe and Cleo, Sonnet at high for Nora, Oscar and Iris;
   `opus-reviewer`, `opus-reviewer-xhigh` and `sonnet-reviewer-xhigh` are removed.
   Codex/OpenCode: Sol at medium, Luna at high, Remy+ on Sol at high (OpenCode
   agents `pr-shepherd-sol` now medium, `pr-shepherd-luna-high`,

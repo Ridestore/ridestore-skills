@@ -26,7 +26,7 @@ REQUIRED = ("SKILL.md", "agents/openai.yaml", "scripts/install.py",
 OPENCODE_PROFILES = {"deepseek": "deepseek/deepseek-flash", "glm": "zhipuai/glm-5.3"}
 MANAGED_COPY = "# pr-shepherd-managed-copy"
 # Files removed from the package; the installer deletes its own leftovers.
-RETIRED_OPENCODE_AGENTS = ("pr-shepherd-astra.md", "pr-shepherd-sol-medium.md", "pr-shepherd-luna-xhigh.md")
+RETIRED_OPENCODE_AGENTS = ("pr-shepherd-astra.md", "pr-shepherd-sol-medium.md", "pr-shepherd-sol.md")
 RETIRED_CLAUDE_AGENTS = ("opus-reviewer.md", "opus-reviewer-xhigh.md", "sonnet-reviewer-xhigh.md")
 PROVIDER_ENV = {"openai": ["OPENAI_API_KEY"], "anthropic": ["ANTHROPIC_API_KEY"],
                 "deepseek": ["DEEPSEEK_API_KEY"], "glm": ["ZHIPU_API_KEY", "ZHIPUAI_API_KEY", "ZAI_API_KEY", "GLM_API_KEY"]}

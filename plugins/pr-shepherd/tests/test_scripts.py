@@ -74,7 +74,7 @@ class ReviewPacketTest(unittest.TestCase):
         # Felix double-checks on a different model family than Maya.
         self.assertTrue(roles["maya"]["model"].startswith("anthropic/"))
         self.assertTrue(roles["felix"]["model"].startswith("openai/"))
-        self.assertEqual(roles["felix"]["definition"], "pr-shepherd-sol")
+        self.assertEqual(roles["felix"]["definition"], "pr-shepherd-luna-xhigh")
 
     def test_dsh_runtime_uses_its_deepseek_tools(self):
         out = os.path.join(self.tmp.name, "dsh")
@@ -197,13 +197,13 @@ class OpenCodeProfileTest(unittest.TestCase):
     def test_gpt_or_claude_keeps_the_default_links(self):
         report, root = self.run_install({"OPENAI_API_KEY": "x", "DEEPSEEK_API_KEY": "y"})
         self.assertEqual(report["opencode"]["profile"], "default")
-        self.assertTrue(os.path.islink(os.path.join(root, "pr-shepherd-sol.md")))
+        self.assertTrue(os.path.islink(os.path.join(root, "pr-shepherd-luna-xhigh.md")))
 
     def test_deepseek_replaces_models_when_no_gpt_or_claude(self):
         report, root = self.run_install({"DEEPSEEK_API_KEY": "y"}, '{"provider": {"zhipuai": {}}}')
         self.assertEqual(report["opencode"]["profile"], "deepseek")
         opus = open(os.path.join(root, "pr-shepherd-opus.md")).read()
-        sol = open(os.path.join(root, "pr-shepherd-sol.md")).read()
+        sol = open(os.path.join(root, "pr-shepherd-luna-xhigh.md")).read()
         self.assertIn("model: deepseek/deepseek-flash", opus)
         self.assertIn("model: deepseek/deepseek-flash", open(os.path.join(root, "pr-shepherd-sol-high.md")).read())
         self.assertIn("model: deepseek/deepseek-flash", sol)
@@ -213,7 +213,7 @@ class OpenCodeProfileTest(unittest.TestCase):
     def test_glm_only_when_no_gpt_claude_or_deepseek(self):
         report, root = self.run_install({}, '{"provider": {"zhipuai": {"options": {}}}}')
         self.assertEqual(report["opencode"]["profile"], "glm")
-        self.assertIn("model: zhipuai/glm-5.3", open(os.path.join(root, "pr-shepherd-sol.md")).read())
+        self.assertIn("model: zhipuai/glm-5.3", open(os.path.join(root, "pr-shepherd-luna-xhigh.md")).read())
         # A later run with GPT connected replaces nothing it does not own and reports the copies.
         again, _ = self.run_install({}, '{"provider": {"zhipuai": {}}}')
         self.assertTrue(all(t["status"] == "copied" for t in again["targets"] if "pr-shepherd-" in t["path"] and t["path"].endswith(".md") and "/agents/" in t["path"]))
