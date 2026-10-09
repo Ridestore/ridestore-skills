@@ -91,20 +91,21 @@ snapshots and translation or data files are ignored.
   `memo`, dynamic imports, observers, scroll listeners) and runtime/build limits
   (PM2, Kubernetes, Wrangler, bundler config). CI workflows, container files,
   styles and package manifests are left to Iris, and deleting a file routes no
-  specialist. - **Oscar (code quality):** in source files, 150+ added lines in
-  one file, a new file of 300+ lines, 400+ added lines in total, 10+ files, five
-  or more added lines six levels deep in the file's own indent unit (eight in
-  markup), and escape hatches and dynamic code: `eval`/`exec` calls, `new
-  Function`, `Proxy`, `setattr`/`__getattr__`/`metaclass`, monkeypatching, a
-  TypeScript `any` type, Python `global`/`nonlocal`, `@ts-ignore`/`@ts-nocheck`,
-  lint or type-check suppressions and FIXME/HACK. - **Iris (language):** shell
-  scripts, SQL and Prisma, Dockerfiles and compose, CI workflows, infrastructure
-  code, build and package config (not release metadata such as `version`),
-  styles, regular expressions, dates, time zones and money arithmetic, encoding
-  and Unicode, async runtime semantics, advanced type-system constructs,
-  module-system edges (`import.meta`, `createRequire`, `exports` maps), signal
-  handling and resource disposal, and added lines in two or more programming
-  languages (JavaScript and TypeScript count as one).
+  specialist.
+- **Oscar (code quality):** in source files, 150+ added lines in one file, a new
+  file of 300+ lines, 400+ added lines in total, 10+ files, five or more added
+  lines six levels deep in the file's own indent unit (eight in markup), and
+  escape hatches and dynamic code: `eval`/`exec` calls, `new Function`, `Proxy`,
+  `setattr`/`__getattr__`/`metaclass`, monkeypatching, a TypeScript `any` type,
+  Python `global`/`nonlocal`, `@ts-ignore`/`@ts-nocheck`, lint or type-check
+  suppressions and FIXME/HACK.
+- **Iris (language):** shell scripts, SQL and Prisma, Dockerfiles and compose,
+  CI workflows, infrastructure code, build and package config (not release
+  metadata such as `version`), styles, regular expressions, dates, time zones
+  and money arithmetic, encoding and Unicode, async runtime semantics, advanced
+  type-system constructs, module-system edges (`import.meta`, `createRequire`,
+  `exports` maps), signal handling and resource disposal, and added lines in two
+  or more programming languages (JavaScript and TypeScript count as one).
 
 Repository instructions can add their own as `--specialist-signal
 ROLE:NAME=REGEX`, matched against changed paths and added lines (for example a
