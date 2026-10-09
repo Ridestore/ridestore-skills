@@ -198,13 +198,14 @@ HARMLESS_ATTRIBUTES = {"text", "eol", "crlf", "whitespace", "working-tree-encodi
 KEY_FILE = re.compile(r"\.(p12|pfx|jks|keystore|pem|key|der|ppk|p8|crt|cer|gpg|kdbx)$|(^|/)id_(rsa|dsa|ecdsa|ed25519)(?:_[a-z0-9_-]+)?$", re.I)
 
 
-TRANSLATION_DIR = re.compile(r"(^|/)(locales?|i18n|translations?|messages|lang)/", re.I)  # i18n namespaces such as credentials.json
+# An i18n namespace file sits in the translation dir or one locale level below it.
+I18N_CREDENTIALS = re.compile(r"(^|/)(locales?|i18n|translations?|messages|lang)/([a-z]{2,3}([-_][A-Za-z]{2,4})?/)?credentials\.json$", re.I)
 # Committed credential stores and env files (not the .example/.sample/.template kind).
 CREDENTIAL_FILE = re.compile(
     r"(^|/)\.env(\.(?!(?:[^/]*\.)?(?:example|sample|template|dist)$)[^/]+)?$|(^|/)\.envrc$"
     r"|(^|/)\.(npmrc|netrc|pgpass|pypirc|dockercfg|git-credentials|htpasswd)$|(^|/)\.aws/credentials$|(^|/)\.docker/config\.json$"
-    r"|\.keytab$|\.tfstate(\.backup)?$|(?<!\.example)(?<!\.sample)(?<!\.template)\.tfvars(\.json)?$"
-    r"|(^|/)\.kube/config$|(^|/)kubeconfig(?:[-_][\w-]{1,40})?(?:\.(?:ya?ml|json|conf))?$"
+    r"|\.keytab$|\.tfstate(\.backup)?$|(?<![._-]example)(?<![._-]sample)(?<![._-]template)(?<!^example)(?<!/example)\.tfvars(\.json)?$"
+    r"|(^|/)\.kube/config$|(^|/)kubeconfig(?![-_.](?:example|sample|template)\b)(?:[-_][\w-]{1,40})?(?:\.(?:ya?ml|json|conf))?$"
     r"|(^|/)(credentials|service[-_]account[^/]*|client_secret[^/]*)\.json$", re.I)
 
 
@@ -268,8 +269,7 @@ def security_tier(diff_text, extra_signals=None):
             matches.setdefault("diff attributes", set()).add(path)
         if kind == "file" and KEY_FILE.search(path):
             matches.setdefault("key or certificate file", set()).add(path)
-        if kind == "file" and CREDENTIAL_FILE.search(path) and not (
-                TRANSLATION_DIR.search(path) and path.lower().endswith("/credentials.json")):
+        if kind == "file" and CREDENTIAL_FILE.search(path) and not I18N_CREDENTIALS.search(path):
             matches.setdefault("credential file", set()).add(path)
         if kind not in ("file", "add") or NOT_CODE.search(path):
             continue
