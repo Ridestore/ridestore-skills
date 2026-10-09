@@ -2,7 +2,8 @@
 
 Matrix revision: 2026-10-09 (skill 2.0.0), local quality profile: the same
 models per role as a production server-side reviewer's normal policy, one
-reasoning-effort step higher (medium → high; xhigh stays xhigh). `gpt-6-astra`
+reasoning-effort step higher (medium → high; xhigh stays xhigh), except Maya
+and Theo, who keep that policy's Sol/medium for speed. `gpt-6-astra`
 only for sensitive security reviews (Remy+, see [roles](roles.md)), at medium at
 most: Astra's stronger model at medium is enough there, and it costs 5× Sol.
 `gpt-6-luna` never runs below high.
@@ -17,8 +18,8 @@ takes precedence. Do not change the coordinator's model or reasoning setting.
 | --- | --- | --- |
 | Coordinator | Current parent Codex model; recommended `gpt-6.1-sol` for a newly user-configured session | Inherit parent |
 | Finn — guidelines | `gpt-6.1-sol` | high |
-| Maya — bugs / incremental fix check | `gpt-6.1-sol` | high |
-| Theo — architecture | `gpt-6.1-sol` | high |
+| Maya — bugs / incremental fix check | `gpt-6.1-sol` | medium |
+| Theo — architecture | `gpt-6.1-sol` | medium |
 | Nora — types | `gpt-6-luna` | xhigh |
 | Jasper — comments and intent | `gpt-6.1-sol` | high |
 | Felix — independent reviewer | `gpt-6.1-sol` | high |
@@ -49,7 +50,7 @@ takes precedence. Do not change the coordinator's model or reasoning setting.
   "task_name": "local_review_bugs",
   "fork_turns": "none",
   "model": "gpt-6.1-sol",
-  "reasoning_effort": "high",
+  "reasoning_effort": "medium",
   "message": "<contents of prompts/maya.md from the review packet>"
 }
 ```

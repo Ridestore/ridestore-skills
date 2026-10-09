@@ -16,7 +16,7 @@ differ. Codex-side roles keep the Codex matrix's models and efforts.
 | Coordinator | Current session model | Inherit | Current session |
 | Finn — guidelines | `openai/gpt-6.1-sol` | high | pr-shepherd-sol |
 | Maya — bugs / incremental fix check | `anthropic/claude-opus-5-5` | provider default | pr-shepherd-opus |
-| Theo — architecture | `openai/gpt-6.1-sol` | high | pr-shepherd-sol |
+| Theo — architecture | `openai/gpt-6.1-sol` | medium | pr-shepherd-sol-medium |
 | Nora — types | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |
 | Jasper — comments and intent | `openai/gpt-6.1-sol` | high | pr-shepherd-sol |
 | Felix — independent reviewer | `openai/gpt-6.1-sol` | high | pr-shepherd-sol |

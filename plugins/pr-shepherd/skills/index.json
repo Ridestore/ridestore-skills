@@ -2,7 +2,7 @@
   "skills": [
     {
       "name": "pr-shepherd",
-      "version": "2.1.0",
+      "version": "2.2.0",
       "files": [
         "SKILL.md",
         "agents/openai.yaml",
@@ -14,6 +14,7 @@
         "agents/opencode/pr-shepherd-astra.md",
         "agents/opencode/pr-shepherd-luna-xhigh.md",
         "agents/opencode/pr-shepherd-opus.md",
+        "agents/opencode/pr-shepherd-sol-medium.md",
         "agents/opencode/pr-shepherd-sol.md",
         "references/attestation.md",
         "references/claude-models.md",
