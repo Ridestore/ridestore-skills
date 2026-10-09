@@ -69,9 +69,37 @@ logging). When unsure, use Remy+. The coordinator may raise routine to Remy+
 with a stated reason, never lower a detected Remy+, and names the decision and
 its matches in the plan and the PR body.
 
-Ruby is required for hot paths/resource changes; Oscar for structural complexity;
-Iris for language-specific behavior outside the others' expertise. Do not run
-specialists only to fill a matrix. Downstream review settings and the optional
+**Ruby, Oscar and Iris are also routed by signals, not by judgement.**
+`review_packet.py` adds each one to the plan when the change under review (the
+whole PR, or for a fix check the changes since the reviewed head) has a signal
+for it in changed code or config, and records the matches in the manifest and
+`self-check.md`. Docs, tests and fixtures are ignored, as for Remy.
+
+- **Ruby (performance):** database queries and ORM calls, network calls, a
+  query, call or `await` inside a loop, request/webhook/cron/queue handlers,
+  pools, semaphores, locks, concurrency and rate limits, `Promise.all` and batch
+  work, caches and TTLs, timeouts, retries and polling, blocking sync calls,
+  module-level `Map`/`Set`/dict collections, pagination, streams and large
+  buffers, migrations and indexes, frontend render and loading work
+  (`useEffect`/`useMemo`, dynamic imports, observers, scroll listeners), and
+  runtime/build limits (PM2, Kubernetes, Wrangler, bundler config).
+- **Oscar (code quality):** 150+ added lines in one code file, a new file of
+  300+ lines, 400+ added code lines in total, 10+ code files, five or more added
+  lines nested six levels deep (eight in markup), and escape hatches (`eval`,
+  `as any`, `@ts-ignore`, lint or type-check suppressions, FIXME/HACK).
+- **Iris (language):** shell scripts, SQL and Prisma, Dockerfiles and compose,
+  CI workflows, infrastructure code, build and package config (not release
+  version bumps), styles, regular expressions, dates, time zones and money
+  arithmetic, encoding and Unicode, async runtime semantics, advanced type-system
+  constructs, module-system edges, signal handling and resource disposal, and a
+  diff in two or more programming languages (JavaScript and TypeScript count as
+  one).
+
+Repository instructions can add their own as `--specialist-signal
+ROLE:NAME=REGEX` (for example a hot internal client for Ruby). The coordinator
+may add a specialist with a stated reason, never drop a signalled one, and names
+the decision and its matches in the plan and the PR body. Do not run
+specialists without a signal or reason only to fill a matrix. Downstream review settings and the optional
 attestation label never lower this profile. Maya and Felix are always distinct
 first-pass calls.
 

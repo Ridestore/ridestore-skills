@@ -124,6 +124,93 @@ class ReviewPacketTest(unittest.TestCase):
         self.assertEqual(manifest["roles"]["remy"]["label"], "Remy · Security review (sensitive) · Sol high")
         self.assertIn("Remy uses the `remy+` row: authentication", open(os.path.join(out, "self-check.md")).read())
 
+    def test_performance_signals_require_ruby(self):
+        spec = lambda diff, extra=None: review_packet.specialist_signals(diff, extra)
+        found = spec("diff --git a/src/hook.ts b/src/hook.ts\n--- a/src/hook.ts\n+++ b/src/hook.ts\n@@ -1 +1,4 @@\n"
+                     "+app.post('/webhook', async (req, res) => {\n+  for (const repo of repos) {\n"
+                     "+    await pool.query('SELECT 1 FROM t WHERE repo = $1', [repo]);\n+  }\n")
+        self.assertIn("ruby", found)
+        for name in ("request and event handlers", "database query", "query, call or await inside a loop"):
+            self.assertIn(name, found["ruby"])
+        self.assertIn("caching", spec("+++ b/src/cache.py\n+@functools.lru_cache(maxsize=128)\n")["ruby"])
+        self.assertIn("concurrency and resource limits", spec("+++ b/src/db.ts\n+export const pool = new Pool({ max: 4 })\n")["ruby"])
+        self.assertIn("module-level collection", spec("+++ b/src/state.ts\n+const seen = new Map<string, number>();\n")["ruby"])
+        self.assertIn("blocking call", spec("+++ b/src/server.js\n+const body = fs.readFileSync(path)\n")["ruby"])
+        self.assertIn("schema and indexes", spec("+++ b/db/migrations/014_idx.sql\n+CREATE INDEX idx_repo ON runs (repo);\n")["ruby"])
+        self.assertIn("frontend rendering and loading", spec("+++ b/web/Cart.tsx\n+useEffect(() => load(id), [id])\n")["ruby"])
+        # Repositories can name their own hot paths.
+        self.assertIn("bff", spec("+++ b/src/x.ts\n+bffClient.get(id)\n", {"ruby": {"bff": r"\bbffClient\."}})["ruby"])
+
+    def test_docs_tests_and_plain_logic_need_no_specialist(self):
+        spec = review_packet.specialist_signals
+        self.assertEqual(spec("+++ b/docs/perf.md\n+Add a cache with a 30 s TTL and a semaphore.\n"), {})
+        self.assertEqual(spec("+++ b/tests/test_db.py\n+cursor.execute('SELECT 1 FROM t')\n"), {})
+        self.assertEqual(spec("+++ b/src/a.py\n+EFFORT = 'high'\n+total = price * qty\n"), {})
+        # A release bump in package.json is not a build change.
+        self.assertEqual(spec('+++ b/web/package.json\n+  "version": "0.3.598",\n+  "autoLastDeveloperCommit": "abc",\n'), {})
+        self.assertIn("build and package config", spec('+++ b/web/package.json\n+    "zod": "^4.1.0",\n')["iris"])
+        # A template literal is not shell parameter expansion.
+        self.assertEqual(spec("+++ b/src/url.ts\n+const u = `${base}/${path}`\n"), {})
+
+    def test_complexity_signals_require_oscar(self):
+        spec = review_packet.specialist_signals
+        big = "diff --git a/src/big.py b/src/big.py\nnew file mode 100644\n--- /dev/null\n+++ b/src/big.py\n@@ -0,0 +1,300 @@\n" + \
+              "".join(f"+x{i} = {i}\n" for i in range(300))
+        names = spec(big)["oscar"]
+        self.assertTrue(any(n.startswith("large change") for n in names))
+        self.assertTrue(any(n.startswith("large new file") for n in names))
+        deep = "+++ b/src/deep.py\n" + "".join("+" + " " * 24 + f"y{i} = {i}\n" for i in range(5))
+        self.assertTrue(any(n.startswith("deep nesting") for n in spec(deep)["oscar"]))
+        # Markup nests by design: the same depth in TSX is not deep.
+        self.assertEqual(spec("+++ b/web/A.tsx\n" + "".join("+" + " " * 12 + f"<b>{i}</b>\n" for i in range(5))), {})
+        wide = "".join(f"+++ b/src/m{i}.py\n+v = {i}\n" for i in range(10))
+        self.assertTrue(any(n.startswith("wide change") for n in spec(wide)["oscar"]))
+        self.assertIn("escape hatches and dynamic code", spec("+++ b/src/a.ts\n+const x = y as any\n")["oscar"])
+
+    def test_language_signals_require_iris(self):
+        spec = review_packet.specialist_signals
+        self.assertIn("shell", spec("+++ b/scripts/deploy.sh\n+rm -rf \"$DIR\"\n")["iris"])
+        self.assertIn("container", spec("+++ b/Dockerfile\n+RUN npm ci\n")["iris"])
+        self.assertIn("ci and automation yaml", spec("+++ b/.github/workflows/ci.yml\n+  run: make\n")["iris"])
+        self.assertIn("regular expressions", spec("+++ b/src/a.py\n+PAT = re.compile(r'x+')\n")["iris"])
+        self.assertIn("dates, time zones and numbers", spec("+++ b/src/a.ts\n+const t = new Date('2026-10-10')\n")["iris"])
+        mixed = spec("+++ b/src/a.py\n+x = 1\n+++ b/src/b.go\n+var x = 1\n")["iris"]
+        self.assertTrue(any(n.startswith("several languages") for n in mixed))
+        # TypeScript and JavaScript are one family.
+        self.assertEqual(spec("+++ b/src/a.ts\n+x = 1\n+++ b/src/b.js\n+y = 2\n"), {})
+
+    def test_packet_adds_signalled_specialists_to_the_plan(self):
+        write(os.path.join(self.repo, "src", "hook.py"),
+              "import requests\n\ndef handle(repos):\n    for r in repos:\n        requests.get(r)\n")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-qm", "hook")
+        out = os.path.join(self.tmp.name, "spec")
+        self.assertEqual(review_packet.main(["--repo", self.repo, "--base", "main", "--roles", "maya,felix",
+                                             "--runtime", "claude", "--out", out]), 0)
+        manifest = json.load(open(os.path.join(out, "manifest.json")))
+        self.assertIn("ruby", manifest["roles"])
+        self.assertTrue(manifest["specialists"]["ruby"]["added"])
+        self.assertIn("network call", manifest["specialists"]["ruby"]["signals"])
+        self.assertTrue(os.path.isfile(os.path.join(out, "prompts", "ruby.md")))
+        self.assertIn("Ruby (performance) (added to the plan): ", open(os.path.join(out, "self-check.md")).read())
+        # A fix check routes on the changes since the reviewed head only.
+        head = subprocess.run(["git", "-C", self.repo, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+        write(os.path.join(self.repo, "src", "a.py"), "EFFORT = 'xhigh'\n")
+        git(self.repo, "commit", "-qam", "fix")
+        out2 = os.path.join(self.tmp.name, "spec2")
+        review_packet.main(["--repo", self.repo, "--base", "main", "--roles", "maya", "--runtime", "claude",
+                            "--previous-head", head, "--out", out2])
+        manifest2 = json.load(open(os.path.join(out2, "manifest.json")))
+        self.assertEqual(list(manifest2["roles"]), ["maya"])
+        self.assertEqual(manifest2["specialists"], {})
+
+    def test_specialist_signal_flag_is_validated(self):
+        with self.assertRaises(SystemExit):
+            self.run_packet("--specialist-signal", "maya:x=y")
+        code, out = self.run_packet("--specialist-signal", "oscar:effort constant=EFFORT")
+        self.assertEqual(code, 0)
+        self.assertIn("effort constant", json.load(open(os.path.join(out, "manifest.json")))["specialists"]["oscar"]["signals"])
+
     def test_stale_terms_fail_the_self_check(self):
         code, out = self.run_packet("--stale", "runs at medium")
         self.assertEqual(code, 1)
