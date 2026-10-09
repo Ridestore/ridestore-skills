@@ -1,0 +1,4 @@
+interface:
+  display_name: "PR Shepherd"
+  short_description: "Local multi-agent review before push, normal PR, review follow-up"
+  default_prompt: "Use $pr-shepherd to implement this change, review it locally with independent agents, and open a normal PR."

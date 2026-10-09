@@ -1,0 +1,38 @@
+{
+  "name": "pr-shepherd",
+  "version": "2.0.0",
+  "description": "Deliver a coding task as a normal pull request that passed a local multi-agent review before the first push: implement and validate in an isolated tree, run independent read-only reviewer agents on pinned models, fix every confirmed finding, open the PR, then follow up on review threads and CI.",
+  "author": {
+    "name": "Ridestore",
+    "url": "https://github.com/Ridestore"
+  },
+  "homepage": "https://github.com/Ridestore/ridestore-skills/tree/main/plugins/pr-shepherd",
+  "repository": "https://github.com/Ridestore/ridestore-skills",
+  "license": "MIT",
+  "keywords": [
+    "pull-request",
+    "code-review",
+    "multi-agent",
+    "subagents",
+    "workflow",
+    "github"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "PR Shepherd",
+    "shortDescription": "Local multi-agent review before push, then a normal PR",
+    "longDescription": "Takes a change from request to a reviewed, non-draft pull request in any GitHub repository. Implements and validates in an isolated task tree, runs independent read-only reviewer agents (bugs, architecture, types, security and more) on pinned models against one frozen snapshot before the first push, fixes every confirmed finding, then opens the PR with the review evidence and follows up on review threads and checks. Repository instructions can add review exemptions, a worktree manager and an optional attestation label for downstream review automation.",
+    "developerName": "Ridestore",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/Ridestore/ridestore-skills/tree/main/plugins/pr-shepherd",
+    "defaultPrompt": [
+      "Implement this change and open a locally reviewed PR",
+      "Run the local multi-agent review on this branch",
+      "Follow up on review threads of my open PR"
+    ]
+  }
+}
