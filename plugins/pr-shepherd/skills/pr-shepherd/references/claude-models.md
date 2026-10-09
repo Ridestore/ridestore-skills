@@ -1,8 +1,8 @@
 # Claude Code role/model matrix
 
 Matrix revision: 2026-10-09 (skill 2.4.0), speed profile.
-Last verified: 2026-10-09 — `opus-reviewer` and `sonnet-reviewer` (effort high)
-and `opus-reviewer-medium` (Maya and Theo) ran as native read-only reviewers on
+Last verified: 2026-10-09 — `sonnet-reviewer` (effort high) and
+`opus-reviewer-medium` (Maya and Theo) ran as native read-only reviewers on
 real PR reviews and returned complete results (observed response model not
 captured). `sonnet-reviewer-medium` is new in 2.4.0 and not yet runtime-verified.
 Check with `python3 scripts/check_matrix.py` (definitions, pins, verification age).
@@ -19,26 +19,27 @@ choices take precedence. Keep the current coordinator and its reasoning setting.
 | Nora — types | `claude-sonnet-5-5` | high | sonnet-reviewer |
 | Jasper — comments and intent | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
 | Felix — independent reviewer | `claude-opus-5-5` | medium | opus-reviewer-medium |
-| Remy — security, routine | `claude-opus-5-5` | medium | opus-reviewer-medium |
-| Remy+ — security: auth, permissions, trust boundaries, secrets, infra, cross-service | `claude-opus-5-5` | high | opus-reviewer |
+| Remy — security, routine | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
+| Remy+ — security: auth, permissions, trust boundaries, secrets, infra, cross-service | `claude-opus-5-5` | medium | opus-reviewer-medium |
 | Ruby — performance | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
 | Oscar — code quality | `claude-sonnet-5-5` | high | sonnet-reviewer |
 | Iris — language | `claude-sonnet-5-5` | high | sonnet-reviewer |
 | Zoe / Cleo — reflection and debate | `claude-opus-5-5` | medium | opus-reviewer-medium |
-| Vera — verification | `claude-opus-5-5` | high | opus-reviewer |
+| Vera — verification | `claude-opus-5-5` | medium | opus-reviewer-medium |
 | Otis / Milo / Luna — fact check, confidence, reachability | `claude-opus-5-5` | medium | opus-reviewer-medium |
 | Ada / Eli / Sofia / Hugo / Max — optional companion duties | Coordinator, or `claude-sonnet-5-5` if delegated | Coordinator's own, or medium when delegated | Not counted as review |
 
-Since 2.4.0 every role runs one effort step lower than before: medium for most
-roles, high for types, code quality, language, verification and sensitive
-security (Remy+), matching the Codex matrix. On a real Deep review (2026-10-09)
-Opus at high took about 6.5 minutes and Sonnet at xhigh about 8. Maya and Theo
-have run Opus at medium since 2.1.0. Whether medium finds as much is not
-measured yet; the xhigh definitions were removed.
+Since 2.4.0 Opus never runs above medium, and everything runs one effort step
+lower than before: Sonnet at high for types, code quality and language, medium
+for every other role. Sensitive security (Remy+) runs Opus while routine Remy
+runs Sonnet, so the security tier still differs. On a real Deep review
+(2026-10-09) Opus at high took about 6.5 minutes and Sonnet at xhigh about 8.
+Maya and Theo have run Opus at medium since 2.1.0. Whether medium finds as much
+is not measured yet; the xhigh and Opus-high definitions were removed.
 
 ## Dispatch
 
-- The four definitions in `agents/*-reviewer*.md` are the source of truth for
+- The three definitions in `agents/*-reviewer*.md` are the source of truth for
   model and effort pins. They are templates, not shared conversations: start a
   fresh call per planned role with the role name and complete review packet.
   Keep Felix separate from Maya and show him no earlier findings.
@@ -47,7 +48,7 @@ measured yet; the xhigh definitions were removed.
   honor `model` and `effort`. `/tasks` and the status line show both.
 - Select the registered `subagent_type` and **omit** the per-call `model`, which
   would override the pin. As a plugin the names are scoped
-  (`pr-shepherd:opus-reviewer`, …); use the exact name the Agent tool lists.
+  (`pr-shepherd:opus-reviewer-medium`, …); use the exact name the Agent tool lists.
 - After installing or updating definitions, reload agents or start a new session.
 - Reviewers have Read/Grep/Glob only. If a finding needs execution or current
   docs, the coordinator gathers bounded evidence and the evidence agent verifies
