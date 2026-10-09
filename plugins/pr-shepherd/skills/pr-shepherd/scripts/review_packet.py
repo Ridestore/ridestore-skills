@@ -3,8 +3,10 @@
 
 Writes, under <git-path>/pr-shepherd-review/<head12>/ (or --out):
   diff.patch         full PR diff from the merge base (plus fix-diff.patch with --previous-head)
-  manifest.json      repository, head/tree/target-tip/merge-base SHAs, changed files
-  self-check.md      pre-dispatch self-check: stale-term matches, instruction files
+  manifest.json      repository, head/tree/target-tip/merge-base SHAs, changed files,
+                     security tier and specialists required by signals
+  self-check.md      pre-dispatch self-check: stale-term matches, security tier,
+                     specialists required by signals, instruction files
   prompts/<name>.md  one prompt per role, built from references/roles.md and the
                      runtime's model matrix (the tables are the single source of truth)
 
@@ -47,6 +49,7 @@ SECURITY_SIGNALS = {
 
 
 NOT_CODE = re.compile(r"(\.(md|mdx|txt|rst)$|(^|/)(docs?|tests?|__tests__|fixtures)/|\.(test|spec)\.[a-z]+$|(^|/)test_[^/]+$)", re.I)
+NOT_CODE_EXCEPT_SUFFIX = re.compile(r"((^|/)(docs?|tests?|__tests__|fixtures)/|\.(test|spec)\.[a-z]+$|(^|/)test_[^/]+$)", re.I)
 
 
 # Personal data counts only where it is stored or queried, not wherever "email" appears.
@@ -63,36 +66,47 @@ def _stores_data(text):
 MAX_LINE = 2000  # specialist signals scan added lines up to here (minified or generated lines)
 
 
-def _diff_path(raw):
-    """A path as git prints it in headers: git's tab after names with spaces is
-    dropped, C-quoted names (non-ASCII, core.quotePath) are decoded and the
-    a/ or b/ prefix (the packet passes --src-prefix/--dst-prefix) is removed."""
+def _unquote(raw):
+    """A name as git prints it: the tab after names with spaces is dropped and
+    C-quoted names (non-ASCII, core.quotePath) are decoded."""
     raw = raw.split("\t")[0].rstrip("\r")
     if raw.startswith('"') and raw.endswith('"') and len(raw) >= 2:
         try:
-            raw = raw[1:-1].encode("latin-1", "backslashreplace").decode("unicode_escape").encode("latin-1").decode("utf-8")
+            return raw[1:-1].encode("latin-1", "backslashreplace").decode("unicode_escape").encode("latin-1").decode("utf-8")
         except (UnicodeError, ValueError):
-            raw = raw[1:-1]
+            return raw[1:-1]
+    return raw
+
+
+def _diff_path(raw):
+    """A ---/+++ header path without its a/ or b/ prefix (the packet passes
+    --src-prefix/--dst-prefix); None for /dev/null."""
+    raw = _unquote(raw)
     if raw == "/dev/null":
         return None
     return raw[2:] if raw[:2] in ("a/", "b/") else raw
 
 
 def _git_header_path(line):
-    """New path from 'diff --git a/X b/Y' (used for renames and binary files,
-    which have no +++ header)."""
-    rest = line[len("diff --git "):]
-    if rest.startswith('"'):
-        end = rest.rfind(' "b/')
-        return _diff_path(rest[end + 1:]) if end > 0 else None
-    end = rest.rfind(" b/")
-    return _diff_path(rest[end + 1:]) if end > 0 else None
+    """New path from 'diff --git a/X b/Y' (renames and binary files have no +++
+    header). Either side may be quoted; without a rename both names are equal,
+    so the line is split in the middle when it can be."""
+    rest = line[len("diff --git "):].rstrip("\r")
+    if rest.endswith('"'):
+        start = rest.rfind(' "b/')
+        return _diff_path(rest[start + 1:]) if start > 0 else None
+    half = (len(rest) - 1) // 2
+    if len(rest) % 2 == 1 and rest[half] == " " and rest[:2] == "a/" and rest[half + 1:half + 3] == "b/" \
+            and rest[2:half] == rest[half + 3:]:
+        return rest[half + 3:]
+    start = rest.rfind(" b/")
+    return _diff_path(rest[start + 1:]) if start > 0 else None
 
 
 def diff_events(diff_text, max_line=MAX_LINE):
     """Yield (kind, path, text) for a unified diff: 'file' once per changed file
-    (text is 'new', 'deleted' or ''), 'hunk' at each @@ header, then 'add',
-    'del' and 'ctx' lines. Hunk lengths are counted, so a content line that
+    (text is 'new', 'deleted' or ''), 'binary' when git shows no lines for it,
+    'hunk' at each @@ header, then 'add', 'del' and 'ctx' lines. Hunk lengths are counted, so a content line that
     starts with '+++ ' is content, not a header. Renames and binary changes
     without a +++ header still give a 'file' event. Lines lose a trailing CR and
     are cut to max_line characters (None: whole lines)."""
@@ -122,8 +136,11 @@ def diff_events(diff_text, max_line=MAX_LINE):
                 yield "file", pending, status
             path, old_path, status = None, None, ""
             pending = _git_header_path(line)
-        elif line.startswith("rename to ") and pending is not None:
-            pending = _diff_path("b/" + line[len("rename to "):]) or pending
+        elif line.startswith("rename to "):
+            pending = _unquote(line[len("rename to "):]) or pending  # no a/ b/ prefix here
+        elif line.startswith("Binary files ") and line.rstrip("\r").endswith(" differ"):
+            if pending:
+                yield "binary", pending, status
         elif line.startswith("new file mode"):
             status = "new"
         elif line.startswith("deleted file mode"):
@@ -132,6 +149,8 @@ def diff_events(diff_text, max_line=MAX_LINE):
             old_path = _diff_path(line[4:])
             if old_path is None:
                 status = "new"
+            elif status != "deleted":
+                status = ""  # pasted diffs without 'diff --git': each file starts fresh
         elif line.startswith("+++ "):
             new_path = _diff_path(line[4:])
             if new_path is None:
@@ -170,6 +189,10 @@ def security_tier(diff_text, extra_signals=None):
     signals.update(_repo_signals(extra_signals, re.I | re.M))
     matches = {}
     for kind, path, text in diff_events(diff_text, max_line=None):
+        if kind == "binary" and _language(path):
+            matches.setdefault("hidden source content", set()).add(path)  # a NUL byte or attributes hide the lines
+        if kind == "file" and re.search(r"(^|/)\.gitattributes$", path):
+            matches.setdefault("diff attributes", set()).add(path)
         if kind not in ("file", "add") or NOT_CODE.search(path):
             continue
         text = path if kind == "file" else text
@@ -194,7 +217,7 @@ def security_tier(diff_text, extra_signals=None):
 # quote or ending in ')') and is bounded, so a long line cannot backtrack.
 IGNORECASE, CASE_SENSITIVE = re.I, 0
 _SQL = r"\b(?:SELECT\s[^;\n]{0,200}?\bFROM|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|UPSERT|ON\s+CONFLICT|FOR\s+UPDATE|(?:INNER|LEFT|RIGHT|OUTER|CROSS)\s+JOIN|GROUP\s+BY|ORDER\s+BY)\b"
-_ORM = (r"\.(?:query|execute|executemany|raw|findMany|findFirst|findUnique|findAll|findOne|findById|aggregate|countDocuments|bulkWrite|insertMany|updateMany|deleteMany)\s*\("
+_ORM = (r"(?:\.|->)(?:query|execute|executemany|raw|findMany|findFirst|findUnique|findAll|findOne|findById|aggregate|countDocuments|bulkWrite|insertMany|updateMany|deleteMany)\s*\("
         r"|\b(?:getPool|createPool|pool\.connect|knex|sequelize|typeorm|drizzle|mongoose|ioredis|cursor\.execute)\b|\bnew\s+Pool\s*\(|\b(?:prisma|redis|db)\.\w+\.\w+\s*\(")
 _NET = (r"(?<![\w.$])(?:fetch|axios|got|ky|superagent|undici\.request)\s*\(|\baxios\.(?:get|post|put|patch|delete|request)\s*\("
         r"|\b(?:https?\.(?:request|get)|XMLHttpRequest|EventSource|grpc|octokit|requests\.(?:get|post|put|patch|delete|request)|httpx\.\w+|aiohttp|urllib\.request|net/http|http\.Client|reqwest)\b"
@@ -241,7 +264,7 @@ PERFORMANCE_SIGNALS = {
 }
 MODULE_COLLECTION_JS = re.compile(r"^(?:export\s+)?(?:const|let|var)\s+\w+\s*(?::[^=]{1,120})?=\s*new\s+(?:Map|Set|WeakMap)\b")
 MODULE_COLLECTION_PY = re.compile(r"^[A-Za-z_]\w*\s*(?::\s*[\w\[\], |.]{1,120})?=\s*(?:\{\}|\[\]|dict\(\)|set\(\)|defaultdict\([^)]{0,80}\)|OrderedDict\(\))\s*(?:#.*)?$")
-LOOP_HEAD = re.compile(r"^\s*(?:async\s+)?(?:for|while)\b|^\s*(?:do|loop)\s*\{|\.(?:forEach|map|flatMap)\(\s*(?:async\b|\(?[\w\s,{}]{0,80}\)?\s*=>\s*\{\s*$)")
+LOOP_HEAD = re.compile(r"^\s*(?:async\s+)?(?:for(?:each)?|while)\b|\.(?:each|each_with_index|for_each|forEach)\b[^\n]{0,80}(?:\bdo|\{|->\s*\{)\s*(?:\|[^|]{0,40}\|)?\s*$|^\s*(?:do|loop)\s*\{|\.(?:forEach|map|flatMap)\(\s*(?:async\b|\(?[\w\s,{}]{0,80}\)?\s*=>\s*\{\s*$)")
 LOOP_COST = re.compile(_SQL + "|" + _ORM + "|" + _NET + r"|\bawait\b")
 LOOP_MAX = 40  # body lines followed after a loop header
 
@@ -255,7 +278,7 @@ COMPLEXITY_LINES = re.compile(
     r"(?<![\w.$])(?:eval|exec)\s*\(|\bnew\s+Function\s*\(|\b(?:setattr|__getattr__|metaclass)\b|\bmonkeypatch\w*"
     r"|\bnew\s+Proxy\s*\(|@ts-ignore|@ts-nocheck|eslint-disable|#\s*type:\s*ignore|\bFIXME\b|\bHACK\b")
 COMMENT_LINE = re.compile(r"^\s*(?://|#|\*|/\*)")  # `any`/`global` in prose comments is not code
-TS_ANY = re.compile(r"(?:[:<,|(]|\bas)\s*any\s*(?:[,;)>=\]|&]|\[\]|$)")  # an `any` type, not any(...) or prose
+TS_ANY = re.compile(r"(?:[:<,|(=]|\bas)\s*any\b(?![\w$(-])(?!\s+(?:of|other|one|thing|value|more|reason|kind|time|way)\b)")  # an `any` type, not any(...) or prose
 PY_GLOBAL = re.compile(r"^\s*(?:global|nonlocal)\s+\w+(?:\s*,\s*\w+)*\s*(?:#.*)?$")
 
 LANGUAGES = {
@@ -275,9 +298,10 @@ MARKUP = re.compile(r"\.(?:tsx|jsx|vue|svelte|astro|html?)$", re.I)
 SPECIALIST_SKIP = re.compile(
     r"(^|/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?|Cargo\.lock|poetry\.lock|Pipfile\.lock|uv\.lock"
     r"|composer\.lock|Gemfile\.lock|go\.sum|flake\.lock)$|\.(min\.(js|css)|map|snap|lock|svg)$"
-    r"|(^|/)(vendor|node_modules|__generated__|testdata|__mocks__|__snapshots__|e2e|cypress)/"
-    r"|^((packages|apps|libs|services)/[^/]+/)?(dist|build|out|generated|\.next|spec)/"  # output dirs only at a repo or package root
-    r"|(^|/)(locales?|i18n|translations?|messages|lang)/|\.(po|pot|xlf|xliff|csv|tsv)$"  # translations and data
+    r"|(^|/)(vendor|node_modules|__generated__|generated|testdata|__mocks__|__snapshots__|e2e|cypress|spec)/"
+    r"|^((packages|apps|libs|services)/[^/]+/)?(dist|build|out|\.next)/"  # ambiguous output dirs only at a repo or package root
+    r"|(^|/)(locales?|i18n|translations?|messages|lang)/.*\.(json|ya?ml|po|pot|properties|xlf|xliff|arb|strings)$"  # translation data, not code
+    r"|\.(po|pot|xlf|xliff|csv|tsv)$"
     r"|\.generated\.|_pb2\.py$|\.pb\.go$|_test\.[a-z]+$|_spec\.rb$|(^|/)conftest\.py$", re.I)
 CI_PATH = re.compile(r"(^|/)\.github/(workflows|actions)/|\.gitlab-ci\.ya?ml$|(^|/)\.circleci/|(^|/)azure-pipelines|(^|/)action\.ya?ml$|(^|/)\.buildkite/", re.I)
 BUILD_CONFIG = re.compile(
@@ -322,7 +346,7 @@ LANGUAGE_LINES = {
         r"|\bimport\s+\w+\s*=\s*require\(", CASE_SENSITIVE),
     "error handling and resource cleanup": (
         r"\b(?:AggregateError|contextmanager|__enter__|__exit__|atexit|SIGTERM|SIGINT|SIGHUP|beforeExit)\b|\bSymbol\.(?:asyncDispose|dispose)\b"
-        r"|\bawait\s+using\b|\busing\s+(?:var\s+)?\w+\s*=|^\s*defer\s+(?:func\b|[\w.]+\()|\brecover\(\)|\bpanic!?\(|\bsignal\.signal\(|\bprocess\.exit\(|\bprocess\.on\(\s*['\"](?:SIG\w+|exit|beforeExit)['\"]", CASE_SENSITIVE),
+        r"|\bawait\s+using\b|\busing\s+var\s+\w+\s*=|\busing\s*\(\s*var\b|^\s*defer\s+(?:func\b|[\w.]+\()|\brecover\(\)|\bpanic!?\(|\bsignal\.signal\(|\bprocess\.exit\(|\bprocess\.on\(\s*['\"](?:SIG\w+|exit|beforeExit)['\"]", CASE_SENSITIVE),
 }
 # Module-format keys count only in package.json, not in translation or data JSON.
 PACKAGE_MODULE_KEYS = re.compile(r'^\s*"(?:exports|imports|main|module|browser)"\s*:|^\s*"type"\s*:\s*"(?:module|commonjs)"')
@@ -381,7 +405,8 @@ def compile_extra_signals(items, roles, flag="--specialist-signal", form="ROLE:N
         try:
             out.setdefault(role, {})[f"repo: {name.strip()}"] = re.compile(pattern, re.I)
         except (re.error, OverflowError, RecursionError) as exc:
-            raise SystemExit(f"{flag}: invalid regex in {item!r}: {exc}")
+            shown = item[len("remy:"):] if flag == "--security-signal" else item
+            raise SystemExit(f"{flag}: invalid regex in {shown!r}: {exc}")
     return out
 
 
@@ -408,9 +433,11 @@ def specialist_signals(diff_text, extra=None):
         found[role].setdefault(name, set()).add(path)
 
     for kind, path, text in diff_events(diff_text):
-        if (NOT_CODE.search(path) and not BUILD_CONFIG.search(path)) or SPECIALIST_SKIP.search(path):
+        # requirements*.txt is build config despite its .txt suffix; docs, tests and fixtures stay out.
+        if (NOT_CODE_EXCEPT_SUFFIX.search(path) or (NOT_CODE.search(path) and not BUILD_CONFIG.search(path))
+                or SPECIALIST_SKIP.search(path)):
             continue
-        if kind == "hunk":
+        if kind in ("hunk", "binary"):
             loop = None
             continue
         if kind == "file":
@@ -512,11 +539,16 @@ def git(repo, *args, check=True):
 # Diffs are read as bytes, without newline translation (a lone CR must not add a
 # line the hunk header does not count) and with fixed output whatever the user's
 # git config says about colour, external diff tools, prefixes or path quoting.
-DIFF_ARGS = ("-c", "core.quotePath=true", "diff", "--no-color", "--no-ext-diff", "--src-prefix=a/", "--dst-prefix=b/", "--find-renames")
+DIFF_ARGS = ("-c", "core.quotePath=true", "diff", "--no-color", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/", "--find-renames")
 
 
 def git_diff(repo, *revs):
-    proc = subprocess.run(["git", "-C", repo, *DIFF_ARGS, *revs], capture_output=True)
+    """The diff between two revisions, with attributes read from the first one, so
+    a .gitattributes added by the PR (`*.ts -diff`) cannot hide its own lines.
+    Git before 2.40 has no --attr-source; it falls back to --text."""
+    proc = subprocess.run(["git", "-C", repo, f"--attr-source={revs[0]}", *DIFF_ARGS, *revs], capture_output=True)
+    if proc.returncode != 0 and b"attr-source" in proc.stderr:
+        proc = subprocess.run(["git", "-C", repo, *DIFF_ARGS, "--text", *revs], capture_output=True)
     if proc.returncode != 0:
         raise SystemExit(f"git diff {' '.join(revs)} failed: {proc.stderr.decode('utf-8', 'replace').strip()}")
     return proc.stdout.decode("utf-8", "replace")
@@ -682,7 +714,7 @@ def main(argv=None):
     diff_path = os.path.join(out, "diff.patch")
     with open(diff_path, "w", encoding="utf-8", newline="") as fh:
         fh.write(git_diff(repo, merge_base, head))
-    files = [l.split("\t")[-1] for l in git(repo, "diff", "--name-status", "--find-renames", merge_base, head).splitlines() if l]
+    files = [l.split("\t")[-1] for l in git(repo, "-c", "core.quotePath=false", "diff", "--no-color", "--name-status", "--find-renames", merge_base, head).splitlines() if l]
     fix_diff = None
     if args.previous_head:
         fix_diff = os.path.join(out, "fix-diff.patch")
