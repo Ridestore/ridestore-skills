@@ -4,9 +4,8 @@ Matrix revision: 2026-10-09 (skill 2.4.2), cost profile: GPT-6.1 Sol only where
 it matters most, bugs (Maya, medium) and sensitive security (Remy+, high, one step
 above routine Remy; see [roles](roles.md)). Every other role runs GPT-6 Luna, at
 xhigh for the general roles and at high (it never runs below high) for types, code
-quality, language and verification. Sol is the expensive model; Luna at xhigh is
-what a production reviewer's simplified cost mode uses for every role. Felix on
-Luna also gives the independent pass a different model than Maya's.
+quality, language and verification. Sol is the expensive model. Felix on Luna also
+gives the independent pass a different model than Maya's.
 This skill does not use `gpt-6-astra`.
 Last verified: 2026-10-07 — GPT-6.1 Sol/high native review calls ran on Codex;
 the other model/effort combinations are policy, not observed runs. Check with

@@ -1,6 +1,6 @@
 # OpenCode role/model matrix
 
-Matrix revision: 2026-10-09 (skill 2.4.2), speed profile, mixed providers.
+Matrix revision: 2026-10-09 (skill 2.4.2), cost profile, mixed providers.
 Last verified: not yet — no OpenCode review has run on these definitions. Model
 IDs assume the `anthropic` and `openai` providers are configured; run one review
 and record what ran (see [maintenance](maintenance.md)). Check with
