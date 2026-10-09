@@ -17,6 +17,7 @@ Standard library only. Read-only for the repository except `--fetch`.
 import argparse
 import datetime
 import json
+import math
 import os
 import re
 import subprocess
@@ -51,31 +52,90 @@ NOT_CODE = re.compile(r"(\.(md|mdx|txt|rst)$|(^|/)(docs?|tests?|__tests__|fixtur
 # Personal data counts only where it is stored or queried, not wherever "email" appears.
 PERSONAL_DATA = re.compile(r"\b(e-?mail|phone|address|date_of_birth|dob|birthdate|ssn|national_id|pii|gdpr)\b", re.I)
 STORAGE_PATH = re.compile(r"(^|/)(migrations?|schema|models?|entities|repositor(y|ies)|db|database|prisma|sql)(/|\.|$)|\.(sql|prisma)$", re.I)
-STORAGE_LINE = re.compile(r"\b(insert\s+into|update\s+\w+\s+set|create\s+table|alter\s+table|select\s+.+\s+from|\.(insert|upsert|update|create|save|findMany|findUnique|query)\s*\()", re.I)
+STORAGE_LINE = re.compile(r"\b(insert\s+into|update\s+\w+\s+set|create\s+table|alter\s+table|select\s[^;\n]{0,200}?\sfrom|\.(insert|upsert|update|create|save|findMany|findUnique|query)\s*\()", re.I)
+
+
+MAX_LINE = 2000  # longer added lines (minified or generated) are scanned only up to here
+
+
+def _diff_path(header):
+    """Path from a '+++ b/x' / '--- a/x' header: git's tab after names with spaces
+    is dropped and C-quoted names (non-ASCII, core.quotePath) are decoded."""
+    raw = header[4:].split("\t")[0].rstrip("\r")
+    if raw.startswith('"') and raw.endswith('"') and len(raw) >= 2:
+        try:
+            raw = raw[1:-1].encode("latin-1", "backslashreplace").decode("unicode_escape").encode("latin-1").decode("utf-8")
+        except (UnicodeError, ValueError):
+            raw = raw[1:-1]
+    if raw == "/dev/null":
+        return None
+    return raw[2:] if raw[:2] in ("a/", "b/") else raw
+
+
+def diff_events(diff_text):
+    """Yield (kind, path, text) for a unified diff: 'file' once per changed file
+    (text is 'new' for an added file), then 'add', 'del' and 'ctx' lines. Hunk
+    lengths are counted, so a content line that starts with '+++ ' is content,
+    not a header. Lines are cut to MAX_LINE characters."""
+    path, old_path, is_new, left_old, left_new, announced = None, None, False, 0, 0, False
+    for line in diff_text.split("\n"):
+        if left_old > 0 or left_new > 0:
+            mark, text = line[:1], line[1:MAX_LINE + 1]
+            if mark == "+":
+                left_new -= 1
+                if path:
+                    yield "add", path, text
+            elif mark == "-":
+                left_old -= 1
+                if path:
+                    yield "del", path, text
+            elif mark == "\\":
+                continue  # "\ No newline at end of file"
+            else:
+                left_old -= 1
+                left_new -= 1
+                if path:
+                    yield "ctx", path, text
+            continue
+        if line.startswith("diff --git "):
+            path, old_path, is_new, announced = None, None, False, False
+        elif line.startswith("--- "):
+            old_path = _diff_path(line)
+            is_new = old_path is None
+        elif line.startswith("+++ "):
+            path = _diff_path(line) or old_path  # a deleted file keeps its old name
+            announced = False
+            if path:
+                yield "file", path, "new" if is_new else ""
+                announced = True
+        elif line.startswith("@@"):
+            m = re.match(r"@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@", line)
+            if m:
+                left_old = int(m.group(1)) if m.group(1) is not None else 1
+                left_new = int(m.group(2)) if m.group(2) is not None else 1
+        elif path and line[:1] in "+-" and line:
+            # Hand-written diffs without hunk headers (tests, pasted patches).
+            yield ("add" if line[0] == "+" else "del"), path, line[1:MAX_LINE + 1]
 
 
 def security_tier(diff_text, extra_signals=None):
     """'remy+' with its matches when a security signal appears in a changed code or
     config path or added line (docs, tests and fixtures are ignored: prose about auth
-    is not an auth change), otherwise 'remy'. Cross-service: signals in 2+ top-level dirs."""
-    signals = {**SECURITY_SIGNALS, **(extra_signals or {})}
-    matches, current = {}, None
-    for line in diff_text.splitlines():
-        if line.startswith("+++ "):
-            current = line[6:] if line.startswith("+++ b/") else None
-            if current and NOT_CODE.search(current):
-                current = None
-            texts = [current] if current else []
-        elif line.startswith("+") and current:
-            texts = [line[1:]]
-        else:
+    is not an auth change), otherwise 'remy'. Cross-service: signals in 2+ top-level dirs.
+    Repository signals are added under 'repo: <name>' and never replace a built-in one."""
+    signals = {name: re.compile(p, re.I | re.M) for name, p in SECURITY_SIGNALS.items()}
+    for name, pattern in (extra_signals or {}).items():
+        signals[f"repo: {name}"] = pattern if isinstance(pattern, re.Pattern) else re.compile(pattern, re.I | re.M)
+    matches = {}
+    for kind, path, text in diff_events(diff_text):
+        if kind not in ("file", "add") or NOT_CODE.search(path):
             continue
-        for text in texts:
-            for name, pattern in signals.items():
-                if re.search(pattern, text, re.I | re.M):
-                    matches.setdefault(name, set()).add(current)
-            if PERSONAL_DATA.search(text) and (STORAGE_PATH.search(current) or STORAGE_LINE.search(text)):
-                matches.setdefault("stored personal data", set()).add(current)
+        text = path if kind == "file" else text
+        for name, rx in signals.items():
+            if rx.search(text):
+                matches.setdefault(name, set()).add(path)
+        if PERSONAL_DATA.search(text) and (STORAGE_PATH.search(path) or STORAGE_LINE.search(text)):
+            matches.setdefault("stored personal data", set()).add(path)
     files = {f for fs in matches.values() for f in fs}
     tops = {f.split("/")[0] for f in files if "/" in f}
     if len(tops) >= 2:
@@ -86,182 +146,281 @@ def security_tier(diff_text, extra_signals=None):
 
 # Specialist signals: changed code that makes Ruby, Oscar or Iris required, so
 # they are routed by the diff rather than remembered. Like security signals they
-# read changed code/config paths and added lines; docs, tests and fixtures are ignored.
+# read changed paths and added lines; docs, tests, fixtures, lockfiles and
+# generated files are ignored. Every pattern carries its own boundaries (no shared
+# \b(...)\b wrapper, which silently kills alternatives starting with '@' or a
+# quote or ending in ')') and is bounded, so a long line cannot backtrack.
+I, CS = re.I, 0
+_SQL = r"\b(?:SELECT\s[^;\n]{0,200}?\bFROM|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|UPSERT|ON\s+CONFLICT|FOR\s+UPDATE|(?:INNER|LEFT|RIGHT|OUTER|CROSS)\s+JOIN|GROUP\s+BY|ORDER\s+BY)\b"
+_ORM = (r"\.(?:query|execute|executemany|raw|findMany|findFirst|findUnique|findAll|findOne|findById|aggregate|countDocuments|bulkWrite|insertMany|updateMany|deleteMany)\s*\("
+        r"|\b(?:getPool|createPool|pool\.connect|knex|sequelize|typeorm|drizzle|mongoose|ioredis|cursor\.execute)\b|\bnew\s+Pool\s*\(|\b(?:prisma|redis|db)\.\w+\.\w+\s*\(")
+_NET = (r"(?<![\w.$])(?:fetch|axios|got|ky|superagent|undici\.request)\s*\(|\baxios\.(?:get|post|put|patch|delete|request)\s*\("
+        r"|\b(?:https?\.(?:request|get)|XMLHttpRequest|EventSource|grpc|octokit|requests\.(?:get|post|put|patch|delete|request)|httpx\.\w+|aiohttp|urllib\.request|net/http|http\.Client|reqwest)\b"
+        r"|\bnew\s+WebSocket\s*\(|\bgraphql\s*\(")
 PERFORMANCE_SIGNALS = {
-    "database query": r"\b(select\s+[\w*,\s.()]+\s+from|insert\s+into|update\s+\w+\s+set|delete\s+from|upsert|(inner|left|right|outer)\s+join|group\s+by|order\s+by|for\s+update)\b|\.(query|execute|raw|findMany|findFirst|findUnique|findAll|findOne|aggregate|count|bulkWrite)\s*\(|\b(getPool|pool\.connect|knex|prisma\.|sequelize|typeorm|drizzle|mongoose|redis\.|ioredis|cursor\.execute)\b",
-    "network call": r"\b(fetch|axios(\.\w+)?|got|ky|superagent|undici|request)\s*\(|\b(https?\.(request|get)|XMLHttpRequest|WebSocket|EventSource|grpc|octokit|graphql\s*\(|requests\.(get|post|put|patch|delete)|httpx\.|aiohttp|urllib\.request|net/http|http\.Client|reqwest)\b",
-    "concurrency and resource limits": r"\b(semaphores?|mutex(es)?|locks?\b|advisory_lock|p-limit|pLimit|p-queue|bottleneck|concurrency|max_?concurrent\w*|maxConcurrent\w*|pool_?size|poolSize|max_?connections|maxConnections|connectionLimit|connection_?timeout\w*|idle_?timeout\w*|rate[_ -]?limit\w*|throttl\w*|debounc\w*|backpressure|worker_threads|Worker\(|cluster\.fork|instances:|exec_mode|threadpool|ThreadPoolExecutor|ProcessPoolExecutor|asyncio\.(gather|Semaphore)|goroutine|sync\.WaitGroup)\b|\bmax\s*:\s*\d+",
-    "parallel and batch work": r"\bPromise\.(all|allSettled|race|any)\b|\bfor\s+await\b|\.(map|forEach|flatMap|reduce)\(\s*async\b|\bbatch(es|ed|ing|Size|_size)?\b|\bchunk(s|ed|Size|_size)?\b|\bbulk\b",
-    "caching": r"\b(cache[sd]?|caching|memoi[sz]\w*|lru|ttl|ttl_?ms|stale-while-revalidate|cache-control|etag|invalidat\w*|revalidate\w*|unstable_cache|react\.cache|functools\.(lru_)?cache|@cache)\b",
-    "timeouts, retries and polling": r"\b(timeouts?|timeout_?ms|deadline|retr(y|ies|ied)|backoff|exponential|setInterval|poll(s|ing|ed)?|long-?poll|heartbeat|AbortController|AbortSignal\.timeout|keep-?alive)\b",
-    "blocking call": r"\b(readFileSync|writeFileSync|existsSync|statSync|readdirSync|execSync|spawnSync|execFileSync|pbkdf2Sync|scryptSync|randomFillSync|zlib\.\w+Sync|JSON\.parse\(\s*fs\.|time\.sleep|Atomics\.wait)\b|\bwhile\s*\(\s*true\s*\)|\bwhile\s+True\b",
-    "large data and streaming": r"\b(paginat\w*|pageSize|page_size|per_page|cursor|offset|limit\s*[:=(]|LIMIT\s+\d|stream(s|ing)?|pipeline\(|createReadStream|createWriteStream|ReadableStream|TransformStream|Buffer\.(alloc|concat)|arrayBuffer\(\)|\.blob\(\)|readAll|fetchall|iterrows|toArray\(\))\b",
-    "schema and indexes": r"\b(create\s+(unique\s+)?index|drop\s+index|add\s+index|add_index|@@index|@index|index\s*\(|reindex|vacuum|analyze\s+\w+|partition\s+by|materialized\s+view|explain\s+(analyze\s+)?select)\b",
-    "frontend rendering and loading": r"\b(useEffect|useLayoutEffect|useMemo|useCallback|React\.memo|memo\(|useTransition|useDeferredValue|Suspense|lazy\(|next/dynamic|dynamic\(\s*\(\)|import\(|next/image|loading=\"lazy\"|fetchpriority|preload|prefetch|requestAnimationFrame|IntersectionObserver|ResizeObserver|MutationObserver|addEventListener\(\s*['\"](scroll|resize|mousemove|touchmove|wheel)|getServerSideProps|generateStaticParams|revalidate|cookies\(\)|headers\(\)|'use client'|\"use client\")",
-    "request and event handlers": r"\b(app|router|server|fastify|hono)\.(get|post|put|patch|delete|all|use|route)\s*\(|\b(middleware|onRequest|handleRequest|addEventListener\(\s*['\"]fetch|export\s+(async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE|loader|action|middleware)|@app\.(get|post|route)|@router\.|webhooks?\b|cron|schedule[dr]?\b|queue\.(add|process)|consumer|subscribe)\b",
+    "database query": (_SQL + "|" + _ORM, CS),
+    "network call": (_NET, CS),
+    "concurrency and resource limits": (
+        r"\b(?:semaphores?|mutex(?:es)?|advisory_lock|withLock|acquireLock|p-limit|pLimit|p-queue|PQueue|bottleneck|max_?concurrent\w*|maxConcurrent\w*"
+        r"|pool_?size|max_?connections|connection_?limit|connection_?timeout\w*|connectionTimeoutMillis|idle_?timeout\w*|idleTimeoutMillis"
+        r"|rate[_ -]?limit\w*|throttl\w*|debounc\w*|backpressure|worker_threads|cluster\.fork|exec_mode|ThreadPoolExecutor|ProcessPoolExecutor"
+        r"|asyncio\.Semaphore|sync\.WaitGroup|errgroup|concurrency)\b|\bnew\s+(?:Worker|Pool)\s*\(|\bcreatePool\s*\(|\.lock\(\s*\)|\.acquire\(\s*\)", I),
+    "parallel and batch work": (
+        r"\bPromise\.(?:all|allSettled|race|any)\b|\bfor\s+await\b|\.(?:map|forEach|flatMap)\(\s*async\b|\basyncio\.gather\b"
+        r"|\b(?:batch_?size|chunk_?size)\b|\bbulk(?:Write|Insert|Create|Upsert)\b", I),
+    "caching": (
+        r"\b(?:cache[sd]?|caching|memoi[sz]\w*|lru|lru_cache|LRUCache|ttl|ttl_?ms|stale-while-revalidate|cache-control|etag|invalidat\w+|unstable_cache)\b"
+        r"|(?<![\w@])@cache\b", I),
+    "timeouts, retries and polling": (
+        r"\b(?:timeouts?|timeout_?ms|deadline|retr(?:y|ies|ied|ying)|backoff|setInterval|poll(?:s|ing|ed|_?interval)?|long-?poll\w*|heartbeats?|keep-?alive)\b"
+        r"|\bAbortSignal\.timeout\b|\bnew\s+AbortController\b", I),
+    "blocking call": (
+        r"\b(?:readFileSync|writeFileSync|appendFileSync|existsSync|statSync|readdirSync|execSync|spawnSync|execFileSync|pbkdf2Sync|scryptSync"
+        r"|randomFillSync|gzipSync|gunzipSync|deflateSync|inflateSync|brotliCompressSync|Atomics\.wait)\b|\btime\.sleep\s*\("
+        r"|\bwhile\s*\(\s*true\s*\)|\bwhile\s+True\b|\bfor\s*\(\s*;\s*;\s*\)", CS),
+    "large data and streaming": (
+        r"\b(?:paginat\w*|pageSize|page_size|per_page|perPage|nextCursor|next_cursor|endCursor|pageInfo|createReadStream|createWriteStream"
+        r"|ReadableStream|WritableStream|TransformStream|stream\.pipeline|Readable\.from|fetchall|iterrows|readlines)\b"
+        r"|\b(?:LIMIT|OFFSET)\s+(?:\d+|\$\d+|\?|:\w+)|\bBuffer\.(?:alloc|concat)\b|\.(?:arrayBuffer|blob|toArray|readAll)\(\s*\)"
+        r"|\.(?:limit|offset|take|skip)\(\s*\d", CS),
+    "schema and indexes": (
+        r"(?i:\bcreate\s+(?:unique\s+)?index\b|\bdrop\s+index\b|\badd_index\b|\breindex\b)|\b(?:VACUUM|PARTITION\s+BY|MATERIALIZED\s+VIEW|EXPLAIN)\b"
+        r"|@@index\b|(?<![\w@])@Index\b|\.index\(\s*\{", CS),
+    "frontend rendering and loading": (
+        r"\b(?:useMemo|useTransition|useDeferredValue|useSyncExternalStore|startTransition|Suspense|requestAnimationFrame|requestIdleCallback"
+        r"|IntersectionObserver|ResizeObserver|MutationObserver|fetchPriority|generateStaticParams|getServerSideProps|getStaticProps)\b"
+        r"|\b(?:React\.)?memo\(|\b(?:React\.)?lazy\(\s*\(\)|next/dynamic|next/image|\bimport\(\s*['\"`]|loading=[\"']lazy"
+        r"|rel=[\"'](?:preload|prefetch|preconnect)|addEventListener\(\s*['\"](?:scroll|resize|mousemove|pointermove|touchmove|wheel)['\"]"
+        r"|\bexport\s+const\s+(?:revalidate|dynamic)\s*=", CS),
+    "request and event handlers": (
+        r"\b(?:app|router|server|fastify|hono|api)\.(?:get|post|put|patch|delete|all|use|route)\s*\(|(?<![\w@])@(?:app|router|api|bp|blueprint)\.(?:get|post|put|patch|delete|route|websocket)\b"
+        r"|\bexport\s+(?:async\s+)?function\s+(?:GET|POST|PUT|PATCH|DELETE|middleware|loader|action)\b|\b(?:middleware|onRequest|handleRequest|[Ww]ebhooks?|cron|scheduler|consumer|onMessage)\b"
+        r"|\bqueue\.(?:add|process)\s*\(|addEventListener\(\s*['\"]fetch['\"]", CS),
 }
-# Module-level mutable collections are caches or registries that can grow without bound.
-MODULE_COLLECTION = re.compile(r"^(export\s+)?(const|let|var)\s+\w+\s*(:[^=]+)?=\s*new\s+(Map|Set|WeakMap|Array)\b|^[A-Za-z_]\w*\s*(:\s*[\w\[\], |]+)?=\s*(\{\}|\[\]|dict\(\)|set\(\)|defaultdict\(|OrderedDict\()\s*(#.*)?$")
-LOOP_LINE = re.compile(r"^\s*(for\b|while\b|do\b|loop\b)|\.(map|forEach|flatMap|reduce|filter|some|every)\s*\(|\bfor\s+\w+\s+(in|of)\b|\.each\b|\biter\(\)")
-LOOP_COST = re.compile(PERFORMANCE_SIGNALS["database query"] + "|" + PERFORMANCE_SIGNALS["network call"] + r"|\bawait\b", re.I)
-LOOP_WINDOW = 8  # added lines after a loop header that count as its body
+MODULE_COLLECTION_JS = re.compile(r"^(?:export\s+)?(?:const|let|var)\s+\w+\s*(?::[^=]{1,120})?=\s*new\s+(?:Map|Set|WeakMap)\b")
+MODULE_COLLECTION_PY = re.compile(r"^[A-Za-z_]\w*\s*(?::\s*[\w\[\], |.]{1,120})?=\s*(?:\{\}|\[\]|dict\(\)|set\(\)|defaultdict\([^)]{0,80}\)|OrderedDict\(\))\s*(?:#.*)?$")
+LOOP_HEAD = re.compile(r"^\s*(?:for|while)\b|^\s*(?:do|loop)\s*\{|\.(?:forEach|map|flatMap)\(\s*(?:async\b|\(?[\w\s,{}]{0,80}\)?\s*=>\s*\{\s*$)")
+LOOP_COST = re.compile(_SQL + "|" + _ORM + "|" + _NET + r"|\bawait\b")
+LOOP_MAX = 40  # body lines followed after a loop header
 
-COMPLEXITY_FILE_LINES = 150   # added lines in one code file
+COMPLEXITY_FILE_LINES = 150   # added lines in one source file
 COMPLEXITY_NEW_FILE_LINES = 300
-COMPLEXITY_TOTAL_LINES = 400  # added code lines across the diff
-COMPLEXITY_WIDE_FILES = 10    # code files changed
-COMPLEXITY_NESTING = 6        # indentation levels of an added line
-COMPLEXITY_NESTED_LINES = 5   # deep lines needed to count
-COMPLEXITY_LINES = re.compile(r"\b(eval|exec|new Function|setattr|__getattr__|Proxy\(|metaclass|monkeypatch\w*|global\s+\w|nonlocal)\b|@ts-ignore|@ts-nocheck|eslint-disable|# type:\s*ignore|\bas any\b|: any\b|\bFIXME\b|\bHACK\b|\bXXX\b")
+COMPLEXITY_TOTAL_LINES = 400  # added source lines across the diff
+COMPLEXITY_WIDE_FILES = 10    # source files with added lines
+COMPLEXITY_NESTING = 6        # indentation levels (in the file's own indent unit)
+COMPLEXITY_NESTED_LINES = 5   # added lines that deep in one file
+COMPLEXITY_LINES = re.compile(
+    r"(?<![\w.$])(?:eval|exec)\s*\(|\bnew\s+Function\s*\(|\b(?:setattr|__getattr__|metaclass|nonlocal)\b|\bglobal\s+\w+|\bmonkeypatch\w*"
+    r"|\bnew\s+Proxy\s*\(|@ts-ignore|@ts-nocheck|eslint-disable|#\s*type:\s*ignore|\bas\s+any\b|:\s*any\b(?![-\w])|\bFIXME\b|\bHACK\b")
 
 LANGUAGES = {
-    "py": "Python", "ts": "JavaScript/TypeScript", "tsx": "JavaScript/TypeScript", "mts": "JavaScript/TypeScript", "cts": "JavaScript/TypeScript",
-    "js": "JavaScript/TypeScript", "jsx": "JavaScript/TypeScript", "mjs": "JavaScript/TypeScript", "cjs": "JavaScript/TypeScript",
+    "py": "Python", "ts": "JavaScript/TypeScript", "tsx": "JavaScript/TypeScript", "mts": "JavaScript/TypeScript",
+    "cts": "JavaScript/TypeScript", "js": "JavaScript/TypeScript", "jsx": "JavaScript/TypeScript", "mjs": "JavaScript/TypeScript",
+    "cjs": "JavaScript/TypeScript", "vue": "JavaScript/TypeScript", "svelte": "JavaScript/TypeScript", "astro": "JavaScript/TypeScript",
     "go": "Go", "rs": "Rust", "rb": "Ruby", "java": "Java", "kt": "Kotlin", "kts": "Kotlin", "swift": "Swift",
     "php": "PHP", "cs": "C#", "c": "C", "h": "C", "cc": "C++", "cpp": "C++", "hpp": "C++", "scala": "Scala",
     "ex": "Elixir", "exs": "Elixir", "lua": "Lua", "dart": "Dart", "sh": "Shell", "bash": "Shell", "zsh": "Shell",
     "ps1": "PowerShell", "sql": "SQL", "prisma": "Prisma", "graphql": "GraphQL", "gql": "GraphQL",
-    "vue": "JavaScript/TypeScript", "svelte": "JavaScript/TypeScript", "astro": "JavaScript/TypeScript", "css": "CSS", "scss": "CSS", "less": "CSS",
-    "tf": "Terraform", "hcl": "Terraform", "nix": "Nix", "jq": "jq", "awk": "awk",
+    "css": "CSS", "scss": "CSS", "sass": "CSS", "less": "CSS", "tf": "Terraform", "hcl": "Terraform", "nix": "Nix",
 }
+NOT_PROGRAMMING = {"CSS", "SQL", "Prisma", "GraphQL", "Terraform", "Nix"}
+MARKUP = re.compile(r"\.(?:tsx|jsx|vue|svelte|astro|html?)$", re.I)
+# Not reviewed for specialists: lockfiles, generated or vendored output, snapshots and
+# test conventions NOT_CODE does not cover (Go/Python suffixes, e2e, mocks).
+SPECIALIST_SKIP = re.compile(
+    r"(^|/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?|Cargo\.lock|poetry\.lock|Pipfile\.lock|uv\.lock"
+    r"|composer\.lock|Gemfile\.lock|go\.sum|flake\.lock)$|\.(min\.(js|css)|map|snap|lock|svg)$|(^|/)(dist|build|out|vendor|node_modules"
+    r"|__generated__|generated|\.next|testdata|__mocks__|__snapshots__|e2e|cypress|spec)/|\.generated\.|_pb2\.py$|\.pb\.go$"
+    r"|_test\.[a-z]+$|_spec\.rb$|(^|/)conftest\.py$", re.I)
+CI_PATH = re.compile(r"(^|/)\.github/(workflows|actions)/|\.gitlab-ci\.ya?ml$|(^|/)\.circleci/|(^|/)azure-pipelines|(^|/)action\.ya?ml$|(^|/)\.buildkite/", re.I)
+BUILD_CONFIG = re.compile(
+    r"(^|/)(package\.json|tsconfig[^/]*\.json|jsconfig\.json|pyproject\.toml|setup\.(py|cfg)|requirements[^/]*\.txt|Cargo\.toml|go\.mod|Gemfile"
+    r"|\.babelrc|babel\.config\.[cm]?js|(webpack|vite|next|rollup|esbuild|tsup|vitest|jest)\.config\.[cm]?[jt]s|eslint\.config\.[cm]?[jt]s|\.eslintrc[^/]*)$", re.I)
+STYLE_PATH = re.compile(r"\.(css|scss|sass|less|styl)$|(^|/)tailwind\.config\.", re.I)
 LANGUAGE_PATHS = {
-    "shell": r"\.(sh|bash|zsh|ps1)$|(^|/)(Makefile|justfile|Taskfile\.ya?ml)$|(^|/)bin/[^/.]+$|(^|/)\.husky/",
+    "shell": r"\.(sh|bash|zsh|ps1)$|(^|/)(Makefile|justfile|Taskfile\.ya?ml)$|(^|/)\.husky/",
     "sql": r"\.(sql|prisma)$|(^|/)migrations?/",
     "container": r"(^|/)(Dockerfile|Containerfile)[^/]*$|(^|/)docker-compose[^/]*\.ya?ml$|(^|/)compose\.ya?ml$|\.dockerignore$",
-    "ci and automation yaml": r"(^|/)\.github/(workflows|actions)/|\.gitlab-ci\.ya?ml$|(^|/)\.circleci/|(^|/)azure-pipelines|(^|/)action\.ya?ml$|(^|/)buildkite",
-    "infrastructure code": r"\.(tf|hcl|nix)$|(^|/)(k8s|kubernetes|helm|charts|terraform|pulumi|cdk)/|(^|/)wrangler\.(toml|jsonc?)$|(^|/)serverless\.ya?ml$",
-    "build and package config": r"(^|/)(package\.json|tsconfig[^/]*\.json|pyproject\.toml|setup\.(py|cfg)|Cargo\.toml|go\.mod|Gemfile|\.babelrc|babel\.config\.[cm]?js|webpack\.config\.[cm]?[jt]s|vite\.config\.[cm]?[jt]s|next\.config\.[cm]?[jt]s|rollup\.config\.[cm]?[jt]s|eslint\.config\.[cm]?[jt]s|\.eslintrc[^/]*)$",
-    "styles": r"\.(css|scss|sass|less|styl)$|tailwind\.config\.",
+    "ci and automation yaml": CI_PATH.pattern,
+    "infrastructure code": r"\.(tf|hcl|nix)$|(^|/)(k8s|kubernetes|terraform|pulumi|cdk)/|(^|/)(helm|charts)/.*\.(ya?ml|tpl)$|(^|/)Chart\.ya?ml$"
+                           r"|(^|/)wrangler\.(toml|jsonc?)$|(^|/)serverless\.ya?ml$",
+    "styles": STYLE_PATH.pattern,
 }
+RUNTIME_LIMIT_PATHS = re.compile(
+    r"(^|/)(ecosystem|pm2)[^/]*\.(c?js|json|ya?ml)$|(^|/)(k8s|kubernetes)/|(^|/)(helm|charts)/.*\.(ya?ml|tpl)$|(^|/)wrangler\.(toml|jsonc?)$"
+    r"|(^|/)(next|vite|webpack|rollup)\.config\.", re.I)
 LANGUAGE_LINES = {
-    "shell": r"^#!.*\b(ba|z|da|k)?sh\b|^\s*set\s+-[euxo]+\b|\bshell:\s*true\b|\bshell=True\b",
-    "regular expressions": r"\bnew RegExp\(|\bre\.(compile|match|search|sub|subn|fullmatch|split|findall|finditer)\(|\.(match|matchAll|replace|replaceAll|split|test|search)\(\s*/|\bregexp\.|\bRegex(::new)?\(",
-    "dates, time zones and numbers": r"\bnew Date\(\s*['\"\w]|\bDate\.(parse|UTC)\b|\.(getTimezoneOffset|toLocale(Date|Time)?String|setHours|setUTCHours|setDate)\(|\bIntl\.(DateTimeFormat|NumberFormat|RelativeTimeFormat)|\b(timeZone|time_zone|dayjs|moment|date-fns|luxon|zoneinfo|pytz|strptime|fromisoformat|utcnow)\b|\b(parseFloat|toFixed|toPrecision|BigInt|Decimal|centAmount|fractionDigits|Number\.EPSILON|MAX_SAFE_INTEGER)\b",
-    "encoding and unicode": r"\b(encodeURI(Component)?|decodeURI(Component)?|TextEncoder|TextDecoder|atob|btoa|base64|utf-?16|latin-?1|iso-8859|normalize\(\s*['\"]NF|localeCompare|casefold|codePointAt|charCodeAt|String\.fromCharCode|toLocale(Lower|Upper)Case|Intl\.Collator|punycode)\b",
-    "async semantics": r"\b(async\s+def|asyncio\.|queueMicrotask|process\.nextTick|setImmediate|unhandledRejection|uncaughtException|AsyncLocalStorage|contextvars|threading\.|multiprocessing\.|tokio::|async\s+fn|\.Wait\(\)|sync\.(Mutex|Once))\b",
-    "type system edges": r"\b(as\s+unknown\s+as|infer\s+[A-Z]\w*|declare\s+(module|global)|TypeVar|ParamSpec|Protocol\[|TypedDict|@overload|typing\.cast|unsafe\s*\{|transmute|interface\{\}|reflect\.(TypeOf|ValueOf))\b|\bextends\s+[\w<>\[\], ]+\s*\?\s*[\w'\"]",
-    "module system": r"\b(require\(|module\.exports|exports\.\w+\s*=|import\.meta|__dirname|__filename|createRequire|export\s+\*\s+from|export\s+default|importlib|__all__|sys\.path|from\s+__future__)\b",
-    "error handling and resource cleanup": r"\b(Symbol\.(asyncD|d)ispose|await\s+using|defer\s+\w|recover\(\)|panic!?\(|contextmanager|__enter__|__exit__|signal\.signal|atexit\.|SIGTERM|SIGINT|beforeExit|process\.exit\(|process\.on\(\s*['\"](SIG\w+|exit|beforeExit)|AggregateError|cause:\s)",
+    "shell": (r"^#!.*\b(?:ba|z|da|k)?sh\b|^\s*set\s+-[euxo]+\b|\bshell:\s*true\b|\bshell=True\b", CS),
+    "regular expressions": (
+        r"\bnew\s+RegExp\s*\(|\bre\.(?:compile|match|search|sub|subn|fullmatch|split|findall|finditer)\s*\(|\.(?:match|matchAll|replace|replaceAll|split|search)\(\s*/"
+        r"|/[^/\s]{1,200}/[dgimsuy]*\.(?:test|exec)\(|\bregexp\.\w+|\bRegex(?:::new)?\s*\(", CS),
+    "dates, time zones and numbers": (
+        r"\bnew\s+Date\s*\(\s*[^)\s]|\bDate\.(?:parse|UTC)\b|\.(?:getTimezoneOffset|toLocaleDateString|toLocaleTimeString|toLocaleString|setHours|setUTCHours|setDate)\s*\("
+        r"|\bIntl\.(?:DateTimeFormat|NumberFormat|RelativeTimeFormat)\b|\b(?:timeZone|time_zone|dayjs|date-fns|luxon|zoneinfo|pytz|strptime|fromisoformat|utcnow"
+        r"|parseFloat|toFixed|toPrecision|BigInt|Decimal|centAmount|fractionDigits|EPSILON|MAX_SAFE_INTEGER)\b|\bmoment\(", CS),
+    "encoding and unicode": (
+        r"\b(?:encodeURI(?:Component)?|decodeURI(?:Component)?|TextEncoder|TextDecoder|atob|btoa|base64|b64encode|b64decode|utf-?16|latin-?1|iso-8859-\d+"
+        r"|localeCompare|casefold|codePointAt|charCodeAt|fromCharCode|fromCodePoint|toLocaleLowerCase|toLocaleUpperCase|Collator|punycode|unicodedata)\b"
+        r"|\.normalize\(\s*['\"]NF[CD]K?['\"]", I),
+    "async semantics": (
+        r"\b(?:queueMicrotask|process\.nextTick|setImmediate|unhandledRejection|uncaughtException|AsyncLocalStorage|contextvars|run_in_executor"
+        r"|asyncio\.(?:run|create_task|get_event_loop|new_event_loop|to_thread|shield|wait_for)|threading\.\w+|multiprocessing\.\w+|tokio::\w+"
+        r"|sync\.(?:Mutex|RWMutex|Once))\b", CS),
+    "type system edges": (
+        r"\bas\s+unknown\s+as\b|\binfer\s+[A-Z]\w*|\bdeclare\s+(?:module|global)\b|\b(?:TypeVar|ParamSpec|TypeVarTuple|TypedDict|TypeGuard|TypeIs)\b"
+        r"|\bProtocol\[|(?<![\w@])@overload\b|\btyping\.cast\(|\bunsafe\s*\{|\bmem::transmute\b|\binterface\{\}|\breflect\.(?:TypeOf|ValueOf)\b"
+        r"|\bextends\s+[^?\n;{]{1,80}\?\s*[^:\n]{1,80}:", CS),
+    "module system": (
+        r"\b(?:createRequire|import\.meta|__dirname|__filename|require\.resolve|importlib|__all__|sys\.path|__future__)\b|\bexport\s+\*\s+from\b"
+        r"|\bimport\s+\w+\s*=\s*require\(|^\s*\"(?:exports|imports|main|module|browser)\"\s*:|^\s*\"type\"\s*:\s*\"(?:module|commonjs)\"", CS),
+    "error handling and resource cleanup": (
+        r"\b(?:AggregateError|contextmanager|__enter__|__exit__|atexit|SIGTERM|SIGINT|SIGHUP|beforeExit)\b|\bSymbol\.(?:asyncDispose|dispose)\b"
+        r"|\bawait\s+using\b|\busing\s+\w+\s*=|\bdefer\s+\w|\brecover\(\)|\bpanic!?\(|\bsignal\.signal\(|\bprocess\.exit\(|\bprocess\.on\(\s*['\"](?:SIG\w+|exit|beforeExit)['\"]", CS),
 }
-
-
 # Release metadata in package files (version bumps, release bots) is not a build change.
-PACKAGE_METADATA = re.compile(r'\s*"?(version|name|description|author|license|homepage|repository|private|keywords|auto\w*)"?\s*[:=]', re.I)
+PACKAGE_METADATA = re.compile(r'^\s*"?(?:version|name|description|author|license|homepage|repository|private|keywords|autoLastDeveloperCommit)"?\s*[:=]'
+                              r'|^\s*[\[\]{}(),]*\s*$', re.I)
 SPECIALISTS = {"ruby": "Ruby (performance)", "oscar": "Oscar (code quality)", "iris": "Iris (language)"}
 
 
-def _code_path(path):
-    return path and not NOT_CODE.search(path)
+def _compile(table):
+    return {name: re.compile(pattern, flags) for name, (pattern, flags) in table.items()}
+
+
+PERFORMANCE_RX, LANGUAGE_RX = _compile(PERFORMANCE_SIGNALS), _compile(LANGUAGE_LINES)
+LANGUAGE_PATH_RX = {name: re.compile(p, re.I) for name, p in LANGUAGE_PATHS.items()}
 
 
 def _language(path):
-    ext = path.rsplit(".", 1)[-1].lower() if "." in path.split("/")[-1] else ""
-    return LANGUAGES.get(ext)
+    name = path.rsplit("/", 1)[-1]
+    return LANGUAGES.get(name.rsplit(".", 1)[-1].lower()) if "." in name else None
+
+
+def _indent_levels(indents, seen=()):
+    """Nesting levels of each (tabs, spaces) indent in the file's own unit: a tab is
+    one level; spaces count in the greatest common step of every indent seen in the
+    file (added and context lines), between 2 and 4."""
+    unit = 0
+    for _, n in list(indents) + list(seen):
+        unit = math.gcd(unit, n)
+    unit = min(4, max(2, unit)) if unit else 4
+    return [tabs + n // unit for tabs, n in indents]
+
+
+def compile_extra_signals(items, roles):
+    """Parse 'ROLE:NAME=REGEX' items into {role: {'repo: NAME': compiled}}; an
+    invalid item or regex exits with the item, before anything is scanned."""
+    out = {}
+    for item in items:
+        role, sep, rest = item.partition(":")
+        name, sep2, pattern = rest.partition("=")
+        role = role.strip().lower()
+        if not (sep and sep2 and role in roles and name.strip() and pattern):
+            raise SystemExit(f"specialist signal must be ROLE:NAME=REGEX with ROLE in {sorted(roles)}: {item!r}")
+        try:
+            out.setdefault(role, {})[f"repo: {name.strip()}"] = re.compile(pattern, re.I)
+        except re.error as exc:
+            raise SystemExit(f"invalid regex in {item!r}: {exc}")
+    return out
 
 
 def specialist_signals(diff_text, extra=None):
     """Which specialists the diff requires, with the matches that require them:
     {"ruby": {signal: [files]}, "oscar": {...}, "iris": {...}} (empty roles omitted).
-    `extra` adds repository signals as {"ruby": {name: regex}}. Docs, tests and
-    fixtures are ignored, as for security signals."""
-    extra = extra or {}
-    perf = {**PERFORMANCE_SIGNALS, **extra.get("ruby", {})}
-    lang_lines = {**LANGUAGE_LINES, **extra.get("iris", {})}
-    quality_lines = extra.get("oscar", {})
+    `extra` adds compiled repository signals as {"ruby": {"repo: name": regex}};
+    they never replace a built-in signal."""
+    extra = {role: {(n if n.startswith("repo: ") else f"repo: {n}"): (rx if isinstance(rx, re.Pattern) else re.compile(rx, re.I))
+                    for n, rx in signals.items()} for role, signals in (extra or {}).items()}
     found = {"ruby": {}, "oscar": {}, "iris": {}}
-    added, new_files, nested, languages = {}, set(), {}, set()
-    current, is_new, loop_left, pending_config = None, False, 0, False
+    added, new_files, indents, seen_indents, config_pending = {}, set(), {}, {}, {}
+    loop = None  # (path, header indent, lines left) while inside a loop body
 
     def hit(role, name, path):
         found[role].setdefault(name, set()).add(path)
 
-    for line in diff_text.splitlines():
-        if line.startswith("diff --git "):
-            current, is_new, loop_left = None, False, 0
+    for kind, path, text in diff_events(diff_text):
+        if NOT_CODE.search(path) or SPECIALIST_SKIP.search(path):
             continue
-        if line.startswith("--- "):
-            is_new = line.strip() == "--- /dev/null"
+        if kind == "file":
+            loop = None
+            if text == "new":
+                new_files.add(path)
+            for name, rx in LANGUAGE_PATH_RX.items():
+                if rx.search(path):
+                    hit("iris", name, path)
+            if re.search(r"(^|/)migrations?/|\.(sql|prisma)$", path, re.I):
+                hit("ruby", "schema and indexes", path)
+            if RUNTIME_LIMIT_PATHS.search(path):
+                hit("ruby", "runtime and build limits", path)
+            if BUILD_CONFIG.search(path):
+                config_pending[path] = True  # confirmed by a non-metadata line below
             continue
-        if line.startswith("+++ "):
-            path = line[6:] if line.startswith("+++ b/") else None
-            current = path if _code_path(path) else None
-            loop_left = 0
-            if not current:
-                continue
-            if is_new:
-                new_files.add(current)
-            lang = _language(current)
-            if lang:
-                languages.add(lang)
-            pending_config = False
-            for name, pattern in LANGUAGE_PATHS.items():
-                if re.search(pattern, current, re.I):
-                    if name == "build and package config":
-                        pending_config = True  # a release version bump alone is not a config change
-                    else:
-                        hit("iris", name, current)
-            if re.search(r"(^|/)migrations?/|\.(sql|prisma)$", current, re.I):
-                hit("ruby", "schema and indexes", current)
-            if re.search(r"(^|/)(ecosystem|pm2)[^/]*\.(c?js|json|ya?ml)$|(^|/)(k8s|kubernetes|helm|charts)/|(^|/)wrangler\.(toml|jsonc?)$|(^|/)(next|vite|webpack)\.config\.", current, re.I):
-                hit("ruby", "runtime and build limits", current)
+        if config_pending.get(path) and kind in ("add", "del") and not PACKAGE_METADATA.match(text):
+            hit("iris", "build and package config", path)
+            config_pending[path] = False
+        stripped = text.lstrip(" \t")
+        indent = (len(text) - len(text.lstrip("\t")), len(text.lstrip("\t")) - len(text.lstrip("\t").lstrip(" ")))
+        width = indent[0] * 4 + indent[1]
+        if kind == "del":
             continue
-        if line.startswith("@@"):
-            loop_left = 0
+        # Loop bodies: lines indented deeper than the loop header, in the same file.
+        if loop and (loop[0] != path or (stripped and width <= loop[1]) or loop[2] <= 0):
+            loop = None
+        in_loop = loop is not None
+        if loop:
+            loop = (loop[0], loop[1], loop[2] - 1)
+        if kind == "ctx":
+            if stripped:
+                seen_indents.setdefault(path, []).append(indent)
+            if LOOP_HEAD.search(text) and not in_loop:
+                loop = (path, width, LOOP_MAX)
             continue
-        if not current or not line.startswith("+"):
-            if current and line.startswith(" ") and loop_left:
-                loop_left -= 1
-            continue
-        text = line[1:]
-        added[current] = added.get(current, 0) + 1
-        if pending_config and text.strip() and not PACKAGE_METADATA.match(text):
-            hit("iris", "build and package config", current)
-            pending_config = False
-        for name, pattern in perf.items():
-            if re.search(pattern, text, re.I):
-                hit("ruby", name, current)
-        if MODULE_COLLECTION.search(text):
-            hit("ruby", "module-level collection", current)
-        if loop_left and LOOP_COST.search(text):
-            hit("ruby", "query, call or await inside a loop", current)
-        if LOOP_LINE.search(text):
-            loop_left = LOOP_WINDOW
-        elif loop_left:
-            loop_left -= 1
-        for name, pattern in lang_lines.items():
-            if re.search(pattern, text, re.I if name != "type system edges" else 0):
-                hit("iris", name, current)
-        expanded = text.expandtabs(4)
-        indent = len(expanded) - len(expanded.lstrip(" "))
-        step = 2 if re.search(r"\.(rb|ya?ml|tsx?|jsx?|mjs|cjs|vue|svelte|json)$", current) else 4
-        # Markup nests by design; count it from two levels deeper.
-        limit = COMPLEXITY_NESTING + (2 if re.search(r"\.(tsx|jsx|vue|svelte|astro|html)$", current) else 0)
-        if text.strip() and indent // step >= limit:
-            nested[current] = nested.get(current, 0) + 1
-        if COMPLEXITY_LINES.search(text):
-            hit("oscar", "escape hatches and dynamic code", current)
-        for name, pattern in quality_lines.items():
-            if re.search(pattern, text, re.I):
-                hit("oscar", name, current)
+        added[path] = added.get(path, 0) + 1
+        lang = _language(path)
+        if stripped:
+            indents.setdefault(path, []).append(indent)
+        if not (CI_PATH.search(path) or STYLE_PATH.search(path) or BUILD_CONFIG.search(path)):
+            for name, rx in PERFORMANCE_RX.items():
+                if rx.search(text):
+                    hit("ruby", name, path)
+            if (lang == "JavaScript/TypeScript" and MODULE_COLLECTION_JS.search(text)) or (lang == "Python" and MODULE_COLLECTION_PY.search(text)):
+                hit("ruby", "module-level collection", path)
+            if in_loop and LOOP_COST.search(text):
+                hit("ruby", "query, call or await inside a loop", path)
+        if LOOP_HEAD.search(text) and not in_loop:
+            loop = (path, width, LOOP_MAX)
+        for name, rx in LANGUAGE_RX.items():
+            if rx.search(text):
+                hit("iris", name, path)
+        if COMPLEXITY_LINES.search(text) and lang:
+            hit("oscar", "escape hatches and dynamic code", path)
+        for role, signals in extra.items():
+            for name, rx in signals.items():
+                if rx.search(text):
+                    hit(role, name, path)
 
-    for path, count in added.items():
+    source = {p: n for p, n in added.items() if _language(p) and _language(p) not in NOT_PROGRAMMING}
+    for path, count in source.items():
         if count >= COMPLEXITY_FILE_LINES:
             hit("oscar", f"large change (≥{COMPLEXITY_FILE_LINES} added lines in a file)", path)
         if path in new_files and count >= COMPLEXITY_NEW_FILE_LINES:
             hit("oscar", f"large new file (≥{COMPLEXITY_NEW_FILE_LINES} lines)", path)
-    if sum(added.values()) >= COMPLEXITY_TOTAL_LINES:
-        for path in sorted(added, key=added.get, reverse=True)[:5]:
-            hit("oscar", f"large diff (≥{COMPLEXITY_TOTAL_LINES} added code lines)", path)
-    if len(added) >= COMPLEXITY_WIDE_FILES:
-        for path in sorted(added)[:5]:
-            hit("oscar", f"wide change (≥{COMPLEXITY_WIDE_FILES} code files)", path)
-    for path, count in nested.items():
-        if count >= COMPLEXITY_NESTED_LINES:
+        limit = COMPLEXITY_NESTING + (2 if MARKUP.search(path) else 0)
+        if sum(level >= limit for level in _indent_levels(indents.get(path, []), seen_indents.get(path, []))) >= COMPLEXITY_NESTED_LINES:
             hit("oscar", f"deep nesting (≥{COMPLEXITY_NESTING} levels)", path)
-    programming = languages - {"CSS", "SQL", "Prisma", "GraphQL"}
-    if len(programming) >= 2:
-        hit("iris", "several languages (" + ", ".join(sorted(programming)) + ")",
-            sorted(p for p in added if _language(p) in programming)[0] if added else "")
+    if sum(source.values()) >= COMPLEXITY_TOTAL_LINES:
+        for path in sorted(source, key=source.get, reverse=True)[:5]:
+            hit("oscar", f"large diff (≥{COMPLEXITY_TOTAL_LINES} added source lines)", path)
+    if len(source) >= COMPLEXITY_WIDE_FILES:
+        for path in sorted(source)[:5]:
+            hit("oscar", f"wide change (≥{COMPLEXITY_WIDE_FILES} source files)", path)
+    by_language = {}
+    for path in sorted(source):
+        by_language.setdefault(_language(path), path)
+    if len(by_language) >= 2:
+        name = "several languages (" + ", ".join(sorted(by_language)) + ")"
+        for path in by_language.values():
+            hit("iris", name, path)
     return {role: {k: sorted(v)[:5] for k, v in sorted(matches.items())} for role, matches in found.items() if matches}
 
 
@@ -442,19 +601,14 @@ def main(argv=None):
 
     # Specialists follow signals in the change under review: the whole PR, or for
     # a fix check the changes since the reviewed head. A detected one is added.
-    extra_specialist = {}
-    for item in args.specialist_signal:
-        role, sep, rest = item.partition(":")
-        name, sep2, pattern = rest.partition("=")
-        if not (sep and sep2 and role.strip().lower() in SPECIALISTS and name.strip() and pattern):
-            raise SystemExit(f"--specialist-signal must be ROLE:NAME=REGEX with ROLE in {sorted(SPECIALISTS)}: {item!r}")
-        extra_specialist.setdefault(role.strip().lower(), {})[name.strip()] = pattern
+    extra_specialist = compile_extra_signals(args.specialist_signal, SPECIALISTS)
     routed_diff = open(fix_diff if fix_diff else diff_path, encoding="utf-8").read()
     specialists = {role: {"signals": found, "added": role not in wanted}
                    for role, found in specialist_signals(routed_diff, extra_specialist).items()}
     wanted += [role for role, info in specialists.items() if info["added"]]
 
-    extra = dict(item.split("=", 1) for item in args.security_signal)
+    extra = {name[len("repo: "):]: rx for name, rx in
+             compile_extra_signals([f"remy:{item}" for item in args.security_signal], {"remy"}).get("remy", {}).items()}
     tier, signals = security_tier(open(diff_path, encoding="utf-8").read(), extra)
     criteria = args.criteria or ""
     if criteria and os.path.isfile(criteria):
