@@ -1,0 +1,25 @@
+{
+  "name": "pr-shepherd",
+  "displayName": "PR Shepherd",
+  "version": "2.0.0",
+  "description": "Deliver a coding task as a normal pull request that passed a local multi-agent review before the first push: implement and validate in an isolated tree, run independent read-only reviewer agents on pinned models, fix every confirmed finding, open the PR, then follow up on review threads and CI.",
+  "author": {
+    "name": "Ridestore",
+    "url": "https://github.com/Ridestore"
+  },
+  "homepage": "https://github.com/Ridestore/ridestore-skills/tree/main/plugins/pr-shepherd",
+  "repository": "https://github.com/Ridestore/ridestore-skills",
+  "license": "MIT",
+  "keywords": [
+    "pull-request",
+    "code-review",
+    "multi-agent",
+    "subagents",
+    "workflow",
+    "github"
+  ],
+  "agents": [
+    "./skills/pr-shepherd/agents/opus-reviewer.md",
+    "./skills/pr-shepherd/agents/sonnet-reviewer.md"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "name": "ridestore-skills",
+  "interface": {
+    "displayName": "Ridestore Skills"
+  },
+  "plugins": [
+    {
+      "name": "pr-shepherd",
+      "source": {
+        "source": "local",
+        "path": "./plugins/pr-shepherd"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL",
+        "products": [
+          "CODEX"
+        ]
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

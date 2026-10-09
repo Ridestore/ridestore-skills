@@ -1,0 +1,22 @@
+{
+  "name": "ridestore-skills",
+  "description": "Agent workflow plugins for Claude Code, Codex and OpenCode, usable in any GitHub repository.",
+  "owner": {
+    "name": "Ridestore",
+    "url": "https://github.com/Ridestore"
+  },
+  "plugins": [
+    {
+      "name": "pr-shepherd",
+      "source": "./plugins/pr-shepherd",
+      "description": "Deliver a coding task as a normal pull request that passed a local multi-agent review before the first push: implement and validate in an isolated tree, run independent read-only reviewer agents on pinned models, fix every confirmed finding, open the PR, then follow up on review threads and CI.",
+      "category": "development",
+      "tags": [
+        "pull-request",
+        "code-review",
+        "multi-agent",
+        "github"
+      ]
+    }
+  ]
+}
