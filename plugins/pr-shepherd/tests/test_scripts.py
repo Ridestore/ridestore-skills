@@ -84,7 +84,8 @@ class ReviewPacketTest(unittest.TestCase):
         self.assertEqual([roles["maya"][k] for k in ("model", "effort", "definition")],
                          ["deepseek-flash", "high", "pr_shepherd_flash"])
         self.assertEqual(roles["nora"]["definition"], "pr_shepherd_flash")
-        self.assertEqual((roles["maya"]["label"], roles["nora"]["label"]), ("Bugs review", "Types review"))
+        self.assertEqual((roles["maya"]["label"], roles["nora"]["label"]),
+                         ("Maya · Bugs review · Flash high", "Nora · Types review · Flash high"))
 
     def test_remy_model_follows_security_signals(self):
         _, routine = review_packet.security_tier("+++ b/src/form.py\n+value = int(request.args['n'])\n")
@@ -120,7 +121,7 @@ class ReviewPacketTest(unittest.TestCase):
         self.assertEqual(manifest["security"]["tier"], "remy+")
         self.assertEqual(manifest["roles"]["remy"]["model"], "gpt-6.1-sol")
         self.assertEqual(manifest["roles"]["remy"]["effort"], "high")
-        self.assertEqual(manifest["roles"]["remy"]["label"], "Security review (sensitive)")
+        self.assertEqual(manifest["roles"]["remy"]["label"], "Remy · Security review (sensitive) · Sol high")
         self.assertIn("Remy uses the `remy+` row: authentication", open(os.path.join(out, "self-check.md")).read())
 
     def test_stale_terms_fail_the_self_check(self):
@@ -266,10 +267,16 @@ class DshInstallTest(unittest.TestCase):
         with open(self.patch, newline="") as fh:
             text = fh.read()
         self.assertTrue(text.startswith("- id: hmr\r\n  disabled: true\r\n# >>> pr-shepherd"))
+        self.assertEqual(text.count("\n"), text.count("\r\n"))
         override = text + "- id: pr-shepherd-flash  # tuned\r\n  config:\r\n    toolName: pr_shepherd_flash\r\n"
         with open(self.patch, "w", newline="") as fh:
             fh.write(override)
         self.assertEqual(self.run_install()[:2], (0, "patched"))
+
+    def test_refuses_override_before_the_managed_block(self):
+        write(self.patch, "- id: pr-shepherd-flash\n  disabled: true\n")
+        self.assertEqual(self.run_install()[:2], (2, "collision"))
+        self.assertEqual(open(self.patch).read(), "- id: pr-shepherd-flash\n  disabled: true\n")
 
     def test_refuses_flow_lists_and_foreign_pr_shepherd_rows(self):
         for content in ("[]\n", "  - id: hmr\n    disabled: true\n", "- insert:\n    - id: pr-shepherd-flash\n",

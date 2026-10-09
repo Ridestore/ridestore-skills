@@ -118,10 +118,25 @@ def load_roles():
     return roles
 
 
-def review_label(role, sensitive=False):
-    """Short description for the agent call, naming what it checks ("Bugs" -> "Bugs review")."""
-    label = role if role.lower().endswith("review") else f"{role} review"
-    return label + " (sensitive)" if sensitive else label
+def short_model(model):
+    """'claude-opus-5-5' -> 'Opus', 'openai/gpt-6.1-sol' -> 'Sol', 'deepseek-flash' -> 'Flash'."""
+    name = model.split("/")[-1]
+    for key in ("opus", "sonnet", "haiku", "sol", "luna", "astra", "flash", "pro", "glm"):
+        if key in name:
+            return key.upper() if key == "glm" else key.capitalize()
+    return name
+
+
+def review_label(name, role, model=None, effort=None, sensitive=False):
+    """Agent-call description: who, what it checks, and on what
+    ("Maya · Bugs review · Opus medium")."""
+    check = role if role.lower().endswith("review") else f"{role} review"
+    if sensitive:
+        check += " (sensitive)"
+    parts = [name, check]
+    if model and effort and not model.startswith(("Current", "Coordinator")):
+        parts.append(f"{short_model(model)} {effort}")
+    return " · ".join(parts)
 
 
 def load_matrix(runtime):
@@ -252,8 +267,11 @@ def main(argv=None):
         "repo": repo, "repo_name": os.path.basename(repo), "base_ref": args.base, "tip": tip,
         "merge_base": merge_base, "head": head, "tree": tree, "previous_head": args.previous_head,
         "files": files, "instructions": instructions, "runtime": args.runtime,
-        "roles": {r: {**roles_info[r], "label": review_label(roles_info[r]["role"], r == "remy" and tier == "remy+"),
-                      **matrix.get(tier if r == "remy" else r, {})} for r in wanted},
+        "roles": {r: {**roles_info[r], **matrix.get(tier if r == "remy" else r, {}),
+                      "label": review_label(roles_info[r]["name"], roles_info[r]["role"],
+                                           matrix.get(tier if r == "remy" else r, {}).get("model"),
+                                           matrix.get(tier if r == "remy" else r, {}).get("effort"),
+                                           r == "remy" and tier == "remy+")} for r in wanted},
         "security": {"tier": tier, "signals": signals},
         "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
     }

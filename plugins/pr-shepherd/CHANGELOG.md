@@ -26,8 +26,8 @@
   leaves anything it did not create.
 - Workspaces: no hard-coded manager commands or links; if a workspace-manager
   skill is installed, the skill loads it and follows its instructions.
-- `review_packet.py` writes a per-role `label` ("Security review"); name
-  reviewer calls by what they check.
+- `review_packet.py` writes a per-role `label` for the agent call's description:
+  name, what it checks, model and effort ("Maya · Bugs review · Opus medium").
 
 ## 2.3.1
 
