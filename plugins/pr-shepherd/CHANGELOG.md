@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.0
+
+- Codex: Maya (bugs) and Theo (architecture) run GPT-6.1 Sol at medium, as in the
+  production reviewer's normal policy, instead of high. OpenCode: Theo uses a new
+  `pr-shepherd-sol-medium` agent. Speed over one effort step for the two slowest roles.
+
 ## 2.1.0
 
 - Claude: Maya (bugs) and Theo (architecture) run Opus 5.5 at medium effort
