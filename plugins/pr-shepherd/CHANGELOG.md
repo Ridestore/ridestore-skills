@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.0
+
+- Claude: Maya (bugs) and Theo (architecture) run Opus 5.5 at medium effort
+  through a new `opus-reviewer-medium` definition, one step lower than before;
+  they were the slowest roles at high. Codex is unchanged (GPT-6.1 Sol at high).
+
 ## 2.0.0
 
 - Self-check before dispatch: `scripts/review_packet.py` freezes the snapshot,

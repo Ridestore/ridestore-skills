@@ -5,7 +5,7 @@ Last verified: 2026-10-09 — Claude Code 2.1.295 ran `opus-reviewer` and
 `sonnet-reviewer` (Opus 5.5 / Sonnet 5.5, effort high) as native read-only
 reviewers on a real PR review; `sonnet-reviewer-xhigh` ran Nora on a real
 review the same day and returned a complete result (observed response model not
-captured). `opus-reviewer-xhigh` is not yet runtime-verified.
+captured). `opus-reviewer-xhigh` and `opus-reviewer-medium` are not yet runtime-verified.
 Check with `python3 scripts/check_matrix.py` (definitions, pins, verification age).
 
 Use native Claude subagents; no hidden Codex/OpenAI fallback. Explicit user model
@@ -15,8 +15,8 @@ choices take precedence. Keep the current coordinator and its reasoning setting.
 | --- | --- | --- | --- |
 | Coordinator | Inherit current parent; recommend `claude-opus-5-5` for a new session | Inherit parent | Existing parent |
 | Finn — guidelines | `claude-sonnet-5-5` | high | sonnet-reviewer |
-| Maya — bugs / incremental fix check | `claude-opus-5-5` | high | opus-reviewer |
-| Theo — architecture | `claude-opus-5-5` | high | opus-reviewer |
+| Maya — bugs / incremental fix check | `claude-opus-5-5` | medium | opus-reviewer-medium |
+| Theo — architecture | `claude-opus-5-5` | medium | opus-reviewer-medium |
 | Nora — types | `claude-sonnet-5-5` | xhigh | sonnet-reviewer-xhigh |
 | Jasper — comments and intent | `claude-sonnet-5-5` | high | sonnet-reviewer |
 | Felix — independent reviewer | `claude-opus-5-5` | high | opus-reviewer |
@@ -31,11 +31,13 @@ choices take precedence. Keep the current coordinator and its reasoning setting.
 | Ada / Eli / Sofia / Hugo / Max — optional companion duties | Coordinator, or `claude-sonnet-5-5` if delegated | Coordinator's own, or high when delegated | Not counted as review |
 
 The xhigh rows mirror the Codex matrix, where the same roles run at xhigh. A
-model without xhigh runs it as high.
+model without xhigh runs it as high. Maya and Theo run Opus at medium (since
+2.1.0): measured on real reviews, they were the slowest roles at high (about 6
+minutes on a Deep review). Whether medium finds as much is not measured yet.
 
 ## Dispatch
 
-- The four definitions in `agents/*-reviewer*.md` are the source of truth for
+- The five definitions in `agents/*-reviewer*.md` are the source of truth for
   model and effort pins. They are templates, not shared conversations: start a
   fresh call per planned role with the role name and complete review packet.
   Keep Felix separate from Maya and show him no earlier findings.
