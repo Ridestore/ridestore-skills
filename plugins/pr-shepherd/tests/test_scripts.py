@@ -162,7 +162,7 @@ class ReviewPacketTest(unittest.TestCase):
         deep = "+++ b/src/deep.py\n" + "".join("+" + " " * 24 + f"y{i} = {i}\n" for i in range(5))
         self.assertTrue(any(n.startswith("deep nesting") for n in spec(deep)["oscar"]))
         # Markup nests by design: the same depth in TSX is not deep.
-        self.assertEqual(spec("+++ b/web/A.tsx\n" + "".join("+" + " " * 12 + f"<b>{i}</b>\n" for i in range(5))), {})
+        self.assertEqual(spec("+++ b/web/A.tsx\n" + "".join("+" + " " * 24 + f"<b>{i}</b>\n" for i in range(5))), {})
         wide = "".join(f"+++ b/src/m{i}.py\n+v = {i}\n" for i in range(10))
         self.assertTrue(any(n.startswith("wide change") for n in spec(wide)["oscar"]))
         self.assertIn("escape hatches and dynamic code", spec("+++ b/src/a.ts\n+const x = y as any\n")["oscar"])
@@ -178,6 +178,7 @@ class ReviewPacketTest(unittest.TestCase):
         self.assertTrue(any(n.startswith("several languages") for n in mixed))
         # TypeScript and JavaScript are one family.
         self.assertEqual(spec("+++ b/src/a.ts\n+x = 1\n+++ b/src/b.js\n+y = 2\n"), {})
+        self.assertEqual(spec("+++ b/src/a.h\n+int x;\n+++ b/src/a.cpp\n+int y;\n"), {})
 
     # One added line per documented signal; each must route its role.
     SIGNAL_CASES = [
@@ -203,6 +204,9 @@ class ReviewPacketTest(unittest.TestCase):
         ("iris", "regular expressions", "src/a.py", "PAT = re.compile(r'x+')"),
         ("iris", "dates, time zones and numbers", "src/a.ts", "const t = new Date('2026-10-10')"),
         ("iris", "encoding and unicode", "src/a.ts", "const s = name.normalize('NFC')"),
+        ("iris", "encoding and unicode", "src/a.ts", "const k = name.normalize('NFKC')"),
+        ("iris", "error handling and resource cleanup", "src/a.go", "\tdefer f.Close()"),
+        ("iris", "error handling and resource cleanup", "src/a.cs", "using var stream = File.OpenRead(p);"),
         ("iris", "async semantics", "src/a.ts", "process.nextTick(flush)"),
         ("iris", "type system edges", "src/a.rs", "unsafe { ptr.read() }"),
         ("iris", "type system edges", "src/a.go", "var v interface{}"),
@@ -219,7 +223,6 @@ class ReviewPacketTest(unittest.TestCase):
         ("src/a.py", "n = items.count(x) + names.index(y)"),
         ("web/Slider.tsx", "<Slider min={0} max={100} />"),
         ("web/Slider.tsx", "const range = { min: 1, max: 10 }"),
-        ("scripts/entry.sh.txt", 'exec "$@"'),
         ("src/a.ts", "const m = re.exec(s)"),
         ("src/a.ts", "const mask = 'XXX-XXX-XXXX'"),
         ("web/Select.tsx", "label: 'Select a size from the list'"),
@@ -229,6 +232,10 @@ class ReviewPacketTest(unittest.TestCase):
         ("web/package.json", '  "version": "0.3.598",'),
         ("web/package.json", '  "autoLastDeveloperCommit": "abc",'),
         ("web/components/charts/Line.tsx", "return <Line data={d} />"),
+        ("locales/en.json", '  "module": "Module", "retry": "Try again",'),
+        ("src/main.rs", "let rest: Vec<_> = std::env::args().skip(1).collect();"),
+        ("web/index.html", '<script defer src="/a.js"></script>'),
+        ("src/a.ts", "// treat as any other request"),
     ]
 
     def test_every_documented_signal_routes_its_role(self):
@@ -297,9 +304,79 @@ class ReviewPacketTest(unittest.TestCase):
     def test_long_lines_do_not_backtrack(self):
         import time
         started = time.time()
-        review_packet.specialist_signals("+++ b/src/bundle.js\n+select " + " " * 50000 + "x\n")
+        # The patterns themselves are bounded, even on uncapped input...
+        review_packet.PERFORMANCE_RX["database query"].search("SELECT " + " " * 50000 + "x")
+        review_packet.LOOP_COST.search("SELECT " + " " * 50000 + "x")
+        review_packet._stores_data("select " + " " * 50000 + "x")
+        for rx in list(review_packet.PERFORMANCE_RX.values()) + list(review_packet.LANGUAGE_RX.values()):
+            rx.search("a" + " " * 20000 + "(" * 2000)
+        # ...and the scanners stay fast on a long minified line.
+        review_packet.specialist_signals("+++ b/src/bundle.js\n+SELECT " + " " * 50000 + "x\n")
         review_packet.security_tier("+++ b/src/bundle.js\n+email select " + " " * 50000 + "x\n")
         self.assertLess(time.time() - started, 2)
+
+    def test_security_scans_whole_lines(self):
+        line = "+const cfg = {cert: '" + "A" * 2500 + "', apiKey: process.env.X}\n"
+        self.assertEqual(review_packet.security_tier("+++ b/src/config.ts\n" + line)[0], "remy+")
+
+    def test_deleted_renamed_and_binary_files(self):
+        spec, tier = review_packet.specialist_signals, review_packet.security_tier
+        deleted = ("diff --git a/db/migrations/012.sql b/db/migrations/012.sql\ndeleted file mode 100644\n"
+                   "--- a/db/migrations/012.sql\n+++ /dev/null\n@@ -1,1 +0,0 @@\n-CREATE INDEX i ON t (c);\n")
+        self.assertEqual(spec(deleted), {})
+        renamed = ("diff --git a/api/x.ts b/auth/session.ts\nsimilarity index 100%\n"
+                   "rename from api/x.ts\nrename to auth/session.ts\n")
+        self.assertEqual(tier(renamed)[0], "remy+")
+        binary = "diff --git a/Dockerfile.png b/Dockerfile\nnew file mode 100644\nBinary files /dev/null and b/Dockerfile differ\n"
+        self.assertIn("container", spec(binary)["iris"])
+
+    def test_container_ci_and_prose_lines_route_no_ruby_or_oscar(self):
+        spec = review_packet.specialist_signals
+        for path, line in (("Dockerfile", "RUN apk add --no-cache curl"), ("Dockerfile", "HEALTHCHECK --timeout=3s --retries=3 CMD x"),
+                           ("docker-compose.yml", "      retries: 5"), (".github/workflows/ci.yml", "      cache: npm"),
+                           (".github/workflows/ci.yml", "    timeout-minutes: 10")):
+            with self.subTest(line=line):
+                self.assertNotIn("ruby", spec(f"+++ b/{path}\n+{line}\n"))
+        for path, line in (("scripts/entry.sh", 'exec "$@"'), ("src/a.ts", "// keep the global flag off"),
+                           ("src/a.py", "flags = {n: any(p.match(n) for p in pats) for n in names}"),
+                           ("src/a.ts", 'throw new Error("Invalid input: any of a, b required")'),
+                           ("db/migrations/1.sql", "-- FIXME: split later"), ("web/a.scss", "/* HACK */")):
+            with self.subTest(line=line):
+                self.assertNotIn("oscar", spec(f"+++ b/{path}\n+{line}\n"))
+        self.assertIn("escape hatches and dynamic code", spec("+++ b/src/a.ts\n+function f(x: any) {}\n")["oscar"])
+        self.assertIn("escape hatches and dynamic code", spec("+++ b/src/a.py\n+    global counter\n")["oscar"])
+
+    def test_package_json_keys_and_requirements(self):
+        spec = review_packet.specialist_signals
+        self.assertIn("module system", spec('+++ b/package.json\n+  "exports": {\n')["iris"])
+        self.assertEqual(spec('+++ b/locales/en.json\n+  "main": "Main menu",\n'), {})
+        self.assertIn("build and package config", spec("+++ b/requirements.txt\n+httpx==0.28.1\n")["iris"])
+        # Output dirs are skipped only at a repo or package root.
+        self.assertEqual(spec("+++ b/packages/web/dist/app.js\n+fetch(url)\n"), {})
+        self.assertIn("ruby", spec("+++ b/tools/build/bundle.ts\n+await fetch(url)\n"))
+
+    def test_odd_indents_and_hunks_do_not_skew_nesting_or_loops(self):
+        spec = review_packet.specialist_signals
+        jsdoc = "+++ b/src/a.ts\n+    /**\n+     * @param id\n+     */\n" + "".join(f"+            y{i}();\n" for i in range(5))
+        self.assertFalse(any(n.startswith("deep nesting") for n in spec(jsdoc).get("oscar", {})))
+        two_hunks = ("diff --git a/src/a.py b/src/a.py\n--- a/src/a.py\n+++ b/src/a.py\n@@ -1,2 +1,2 @@\n"
+                     "     for row in rows:\n         total += row.n\n@@ -90,1 +90,2 @@\n         x = 1\n+        data = await self.load()\n")
+        self.assertNotIn("query, call or await inside a loop", spec(two_hunks).get("ruby", {}))
+        async_for = "+++ b/src/a.py\n@@ -0,0 +1,2 @@\n+    async for row in rows:\n+        await send(row)\n"
+        self.assertIn("query, call or await inside a loop", spec(async_for)["ruby"])
+        crlf = "+++ b/src/a.py\n+REGISTRY = defaultdict(list)\r\n"
+        self.assertIn("module-level collection", spec(crlf)["ruby"])
+
+    def test_lone_carriage_return_does_not_shift_hunks(self):
+        path = os.path.join(self.repo, "src", "cr.py")
+        with open(path, "wb") as fh:
+            fh.write(b'q = "\r"\ntok = 1\n++ b/docs/x.md\nresp = requests.get(url)\n')
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-qm", "cr")
+        out = os.path.join(self.tmp.name, "cr")
+        review_packet.main(["--repo", self.repo, "--base", "main", "--roles", "maya", "--runtime", "claude", "--out", out])
+        manifest = json.load(open(os.path.join(out, "manifest.json")))
+        self.assertIn("network call", manifest["specialists"]["ruby"]["signals"])
 
     def test_repository_signals_add_and_never_replace(self):
         extra = review_packet.compile_extra_signals(["ruby:database query=(?!)"], review_packet.SPECIALISTS)
@@ -307,11 +384,13 @@ class ReviewPacketTest(unittest.TestCase):
         self.assertIn("database query", found["ruby"])
         self.assertEqual(review_packet.security_tier("+++ b/api/s.ts\n+const jwt = sign(user)\n",
                                                      {"authentication": "(?!)"})[0], "remy+")
-        for bad in ("ruby:x=(", "maya:x=y", "ruby:=y"):
+        for bad in ("ruby:x=(", "maya:x=y", "ruby:=y", "ruby:x=a{99999999999}"):
             with self.subTest(item=bad), self.assertRaises(SystemExit):
                 review_packet.compile_extra_signals([bad], review_packet.SPECIALISTS)
-        with self.assertRaises(SystemExit):
-            self.run_packet("--security-signal", "api=(")
+        for bad in ("api=(", "api"):
+            with self.subTest(item=bad), self.assertRaises(SystemExit) as raised:
+                self.run_packet("--security-signal", bad)
+            self.assertIn("--security-signal", str(raised.exception))
 
     def test_packet_adds_signalled_specialists_to_the_plan(self):
         write(os.path.join(self.repo, "src", "hook.py"),

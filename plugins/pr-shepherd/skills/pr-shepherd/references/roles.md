@@ -74,8 +74,8 @@ the PR body.
 `review_packet.py` adds each one to the plan when the change under review (the
 whole PR, or for a fix check the changes since the reviewed head) has a signal
 for it in changed code or config, and records the matches in the manifest and
-`self-check.md`. Docs, tests, fixtures, lockfiles, generated or vendored output
-and snapshots are ignored.
+`self-check.md`. Docs, tests, fixtures, lockfiles, generated or vendored output,
+snapshots and translation or data files are ignored.
 
 - **Ruby (performance):** SQL and ORM calls, network calls, a query, call or
   `await` inside a loop body, request/webhook/cron/queue handlers, pools,
@@ -84,13 +84,16 @@ and snapshots are ignored.
   module-level `Map`/`Set`/dict collections, pagination, streams and buffered
   bodies, migrations and indexes, frontend render and loading work (`useMemo`,
   `memo`, dynamic imports, observers, scroll listeners) and runtime/build limits
-  (PM2, Kubernetes, Wrangler, bundler config). CI workflows, styles and package
-  manifests are left to Iris.
+  (PM2, Kubernetes, Wrangler, bundler config). CI workflows, container files,
+  styles and package manifests are left to Iris, and deleting a file routes no
+  specialist.
 - **Oscar (code quality):** in source files, 150+ added lines in one file, a new
   file of 300+ lines, 400+ added lines in total, 10+ files, five or more added
   lines six levels deep in the file's own indent unit (eight in markup), and
-  escape hatches (`eval`/`exec` calls, `as any`, `@ts-ignore`, lint or type-check
-  suppressions, `global`, FIXME/HACK).
+  escape hatches and dynamic code: `eval`/`exec` calls, `new Function`, `Proxy`,
+  `setattr`/`__getattr__`/`metaclass`, monkeypatching, a TypeScript `any` type,
+  Python `global`/`nonlocal`, `@ts-ignore`/`@ts-nocheck`, lint or type-check
+  suppressions and FIXME/HACK.
 - **Iris (language):** shell scripts, SQL and Prisma, Dockerfiles and compose,
   CI workflows, infrastructure code, build and package config (not release
   metadata such as `version`), styles, regular expressions, dates, time zones
