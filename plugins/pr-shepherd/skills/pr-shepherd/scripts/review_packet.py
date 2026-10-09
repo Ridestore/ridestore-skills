@@ -199,7 +199,8 @@ KEY_FILE = re.compile(r"\.(p12|pfx|jks|keystore|pem|key|der|ppk|p8|crt|cer|gpg|k
 
 
 # An i18n namespace file sits in the translation dir or one locale level below it.
-I18N_CREDENTIALS = re.compile(r"(^|/)(locales?|i18n|translations?|messages|lang)/([a-z]{2,3}([-_][A-Za-z]{2,4})?/)?credentials\.json$", re.I)
+# Only i18n-named dirs (not messages/ or lang/, common service names) and a strict locale shape.
+I18N_CREDENTIALS = re.compile(r"(^|/)(?i:locales?|i18n|translations?)/([a-z]{2}(?:[-_](?:[A-Z]{2}|\d{3}|[A-Z][a-z]{3}))?/)?credentials\.json$")
 # Committed credential stores and env files (not the .example/.sample/.template kind).
 CREDENTIAL_FILE = re.compile(
     r"(^|/)\.env(\.(?!(?:[^/]*\.)?(?:example|sample|template|dist)$)[^/]+)?$|(^|/)\.envrc$"

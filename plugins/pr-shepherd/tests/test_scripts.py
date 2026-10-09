@@ -468,12 +468,13 @@ class ReviewPacketTest(unittest.TestCase):
         for path in (".env", ".env.production", "app/.npmrc", ".netrc", "deploy/svc.keytab", "gcp/service-account-prod.json",
                      ".aws/credentials", ".git-credentials", "infra/terraform.tfstate", "prod.tfvars", ".htpasswd", ".envrc",
                      "ops/kubeconfig-prod", ".kube/config", "services/messages/service-account.json", "env/prod.tfvars.json",
-                     "services/messages/.env.production", "ops/kubeconfig.yaml", "services/messages/deploy/credentials.json"):
+                     "services/messages/.env.production", "ops/kubeconfig.yaml", "services/messages/deploy/credentials.json",
+                     "services/messages/gcp/credentials.json", "messages/aws-prod/credentials.json", "lang/credentials.json"):
             with self.subTest(path=path):
                 self.assertIn("credential file", review_packet.security_tier(f"+++ b/{path}\n+x\n")[1])
         for path in (".env.example", ".env.sample", "src/env.ts", ".env.local.example", ".env.production.template",
                      "locales/en/credentials.json", "prod.example.tfvars", "prod.sample.tfvars", "docs/kubeconfig.md",
-                     "pkg/kubeconfig.go", "pkg/kubeconfig_test.go", "src/messages/.env.example", "locales/de-DE/credentials.json",
+                     "pkg/kubeconfig.go", "pkg/kubeconfig_test.go", "src/messages/.env.example", "locales/de-DE/credentials.json", "locales/es-419/credentials.json", "i18n/credentials.json",
                      "deploy/kubeconfig-example.yaml", "prod_example.tfvars", "examples/example.tfvars"):
             with self.subTest(path=path):
                 self.assertNotIn("credential file", review_packet.security_tier(f"+++ b/{path}\n+x\n")[1])
