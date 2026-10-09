@@ -131,7 +131,7 @@ class ReviewPacketTest(unittest.TestCase):
                      "+app.post('/webhook', async (req, res) => {\n+  for (const repo of repos) {\n"
                      "+    await pool.query('SELECT 1 FROM t WHERE repo = $1', [repo]);\n+  }\n")
         self.assertIn("ruby", found)
-        for name in ("request and event handlers", "database query", "query, call or await inside a loop"):
+        for name in ("request and event handlers", "database query", "query, network call or await inside a loop"):
             self.assertIn(name, found["ruby"])
         self.assertIn("caching", spec("+++ b/src/cache.py\n+@functools.lru_cache(maxsize=128)\n")["ruby"])
         self.assertIn("concurrency and resource limits", spec("+++ b/src/db.ts\n+export const pool = new Pool({ max: 4 })\n")["ruby"])
@@ -295,7 +295,7 @@ class ReviewPacketTest(unittest.TestCase):
     def test_loop_signal_follows_the_loop_body(self):
         spec = review_packet.specialist_signals
         hunk = lambda *lines: "+++ b/src/a.ts\n@@ -0,0 +1,%d @@\n" % len(lines) + "".join(f"+{l}\n" for l in lines)
-        name = "query, call or await inside a loop"
+        name = "query, network call or await inside a loop"
         self.assertIn(name, spec(hunk("for (const r of repos) {", "  await save(r)", "}")).get("ruby", {}))
         self.assertIn(name, spec(hunk("ids.forEach(async (id) => {", "  await fetch(url + id)", "})")).get("ruby", {}))
         php = "+++ b/src/a.php\n@@ -0,0 +1,3 @@\n+foreach ($ids as $id) {\n+    $rows[] = $pdo->query($sql);\n+}\n"
@@ -437,9 +437,9 @@ class ReviewPacketTest(unittest.TestCase):
         self.assertFalse(any(n.startswith("deep nesting") for n in spec(jsdoc).get("oscar", {})))
         two_hunks = ("diff --git a/src/a.py b/src/a.py\n--- a/src/a.py\n+++ b/src/a.py\n@@ -1,2 +1,2 @@\n"
                      "     for row in rows:\n         total += row.n\n@@ -90,1 +90,2 @@\n         x = 1\n+        data = await self.load()\n")
-        self.assertNotIn("query, call or await inside a loop", spec(two_hunks).get("ruby", {}))
+        self.assertNotIn("query, network call or await inside a loop", spec(two_hunks).get("ruby", {}))
         async_for = "+++ b/src/a.py\n@@ -0,0 +1,2 @@\n+    async for row in rows:\n+        await send(row)\n"
-        self.assertIn("query, call or await inside a loop", spec(async_for)["ruby"])
+        self.assertIn("query, network call or await inside a loop", spec(async_for)["ruby"])
         crlf = "+++ b/src/a.py\n+REGISTRY = defaultdict(list)\r\n"
         self.assertIn("module-level collection", spec(crlf)["ruby"])
 
@@ -520,6 +520,13 @@ class ReviewPacketTest(unittest.TestCase):
         review_packet.main(["--repo", self.repo, "--base", "main", "--roles", "maya", "--runtime", "claude", "--out", out])
         manifest = json.load(open(os.path.join(out, "manifest.json")))
         self.assertIn("network call", manifest["specialists"]["ruby"]["signals"])
+
+    def test_repository_signals_match_paths_too(self):
+        extra = review_packet.compile_extra_signals(["ruby:hot path=^src/hot/"], review_packet.SPECIALISTS)
+        found = review_packet.specialist_signals("+++ b/src/hot/a.py\n+x = 1\n", extra)
+        self.assertEqual(found["ruby"]["repo: hot path"], ["src/hot/a.py"])
+        deleted = "diff --git a/src/hot/a.py b/src/hot/a.py\ndeleted file mode 100644\n--- a/src/hot/a.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-x = 1\n"
+        self.assertEqual(review_packet.specialist_signals(deleted, extra), {})
 
     def test_repository_signals_add_and_never_replace(self):
         extra = review_packet.compile_extra_signals(["ruby:database query=(?!)"], review_packet.SPECIALISTS)

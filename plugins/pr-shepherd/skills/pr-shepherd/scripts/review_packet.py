@@ -540,6 +540,10 @@ def specialist_signals(diff_text, extra=None):
                 hit("ruby", "runtime and build limits", path)
             if BUILD_CONFIG.search(path):
                 config_pending[path] = True  # confirmed by a non-metadata line below
+            for role, signals in extra.items():  # repository signals read changed paths too
+                for name, rx in signals.items():
+                    if rx.search(path):
+                        hit(role, name, path)
             continue
         if config_pending.get(path) and kind in ("add", "del") and not PACKAGE_METADATA.match(text):
             hit("iris", "build and package config", path)
@@ -573,7 +577,7 @@ def specialist_signals(diff_text, extra=None):
             if (lang == "JavaScript/TypeScript" and MODULE_COLLECTION_JS.search(text)) or (lang == "Python" and MODULE_COLLECTION_PY.search(text)):
                 hit("ruby", "module-level collection", path)
             if in_loop and LOOP_COST.search(text):
-                hit("ruby", "query, call or await inside a loop", path)
+                hit("ruby", "query, network call or await inside a loop", path)
         if LOOP_HEAD.search(text) and not in_loop:
             loop = (path, width, LOOP_MAX)
         for name, rx in LANGUAGE_RX.items():
