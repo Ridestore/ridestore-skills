@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.4.1
+
+- Explicitly identify `task-workspaces` and its `task-workspaces:task-workspaces`
+  alias in workspace integration guidance, directing agents to its SKILL.md.
+
 ## 2.4.0
 
 - DeepSeek Harness (dsh) support: `install.py --dsh-home ~/.dsh` links the skill
