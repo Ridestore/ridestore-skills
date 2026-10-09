@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -24,6 +25,8 @@ REQUIRED = ("SKILL.md", "agents/openai.yaml", "scripts/install.py",
 # DeepSeek first, then GLM; one model for every role.
 OPENCODE_PROFILES = {"deepseek": "deepseek/deepseek-flash", "glm": "zhipuai/glm-5.3"}
 MANAGED_COPY = "# pr-shepherd-managed-copy"
+# OpenCode agents removed from the package; the installer deletes its own leftovers.
+RETIRED_OPENCODE_AGENTS = ("pr-shepherd-astra.md",)
 PROVIDER_ENV = {"openai": ["OPENAI_API_KEY"], "anthropic": ["ANTHROPIC_API_KEY"],
                 "deepseek": ["DEEPSEEK_API_KEY"], "glm": ["ZHIPU_API_KEY", "ZHIPUAI_API_KEY", "ZAI_API_KEY", "GLM_API_KEY"]}
 PROVIDER_IDS = {"openai": r'"openai"', "anthropic": r'"anthropic"', "deepseek": r'"deepseek"',
@@ -58,31 +61,86 @@ def opencode_copy(agent, profile):
 
 DSH_BEGIN = "# >>> pr-shepherd (managed by install.py) >>>"
 DSH_END = "# <<< pr-shepherd <<<"
+# Our rows, matched however a copy outside the block is written: an id in any key
+# position or quoting, or a tool name (dsh requires distinct tool names).
+DSH_ROW = re.compile(r"""\bid:\s*["']?pr-shepherd-|\btoolName:\s*["']?pr_shepherd_""")
+# A top-level `- id: pr-shepherd-…` item outside the block overrides fields of our
+# row (dsh patches rows by id), which is supported.
+DSH_OVERRIDE = re.compile(r"""-\s+id:\s*["']?pr-shepherd-[a-z0-9-]+["']?\s*\n""")
+
+
+def read_exact(path):
+    with open(path, newline="") as fh:  # keep CRLF and other bytes outside the block as they are
+        return fh.read()
+
+
+def dsh_outside_problem(outside):
+    """Why text outside the managed block makes appending unsafe, or None. The file
+    must be a YAML block list starting at column 0, with no copies of our rows."""
+    items, lines = [], [l for l in outside.splitlines(True) if l.strip() and not l.lstrip().startswith("#")]
+    if lines and not lines[0].startswith("-"):
+        return "not a YAML block list at column 0"
+    for line in lines:
+        if not line[0].isspace():
+            if not line.startswith("-"):
+                return "not a YAML block list at column 0"
+            items.append(line)
+        else:
+            items[-1] += line
+    for item in items:
+        if DSH_ROW.search(item) and not DSH_OVERRIDE.match(item):
+            return "pr-shepherd rows already exist outside the managed block"
+    return None
 
 
 def dsh_patch_record(dest, fragment):
-    """Plan the managed block in dsh's home patch (a YAML block list). Text outside
-    the markers is never changed; a file we cannot append to safely is a collision."""
-    block = f"{DSH_BEGIN}\n{fragment.rstrip()}\n{DSH_END}\n"
-    current = dest.read_text() if dest.is_file() else ""
+    """Plan the managed block in dsh's home patch. Text outside the markers is never
+    changed; a file we cannot append to safely is a collision."""
     record = {"path": str(dest), "expected_target": "managed block from agents/dsh/cordis.patch.yml"}
-    begin, end = current.find(DSH_BEGIN + "\n"), current.find(DSH_END + "\n")
     if dest.is_symlink() or (dest.exists() and not dest.is_file()):
-        status, new = "collision", None
-    elif begin != -1 and end > begin and current.count(DSH_BEGIN) == 1:
-        outside = current[:begin] + current[end + len(DSH_END) + 1:]
-        new = current[:begin] + block + current[end + len(DSH_END) + 1:]
-        status = "collision" if re.search(r"^\s*- id: pr-shepherd-", outside, re.M) else "patched" if new == current else "outdated"
-    elif DSH_BEGIN in current or DSH_END in current or re.search(r"^\s*- id: pr-shepherd-", current, re.M):
-        status, new = "collision", None
+        record.update(status="collision", error="not a regular file", _text=None)
+        return record
+    current = read_exact(dest) if dest.is_file() else ""
+    nl = "\r\n" if "\r\n" in current else "\n"
+    block = nl.join([DSH_BEGIN, fragment.rstrip(), DSH_END]) + nl
+    begin, end = current.find(DSH_BEGIN), current.find(DSH_END)
+    if current.count(DSH_BEGIN) == 1 and current.count(DSH_END) == 1 and begin < end:
+        tail = current.index("\n", end) + 1 if "\n" in current[end:] else len(current)
+        outside, new = current[:begin] + current[tail:], current[:begin] + block + current[tail:]
+    elif DSH_BEGIN in current or DSH_END in current:
+        outside, new = None, None
     else:
-        top = [l for l in current.splitlines() if l.strip() and not l.lstrip().startswith("#") and not l[0].isspace()]
-        status = "missing" if all(l.startswith("- ") or l == "-" for l in top) else "collision"
-        new = current + ("\n" if current and not current.endswith("\n") else "") + block
-    if status == "collision":
-        record["error"] = "not a YAML block list, or pr-shepherd rows exist outside the managed block"
-    record["status"], record["_text"] = status, new
+        sep = nl if current and not current.endswith("\n") else ""
+        outside, new = current, current + sep + block
+    problem = "unpaired or duplicate pr-shepherd markers" if outside is None else dsh_outside_problem(outside)
+    if problem:
+        record.update(status="collision", error=problem, _text=None)
+    else:
+        record.update(status="patched" if new == current else "outdated" if begin != -1 else "missing",
+                      _text=new, _current=current)
     return record
+
+
+def replace_file(dest, text, expected):
+    """Write next to dest, then rename over it, so an interrupted install never
+    leaves the user's file truncated. Refuses if the file changed since planning."""
+    if (dest.exists() or dest.is_symlink()) and (dest.is_symlink() or read_exact(dest) != expected):
+        raise ValueError(f"{dest} changed while installing; nothing written, run again")
+    if not dest.exists() and expected:
+        raise ValueError(f"{dest} disappeared while installing; nothing written, run again")
+    fd, tmp = tempfile.mkstemp(dir=dest.parent, prefix=dest.name + ".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", newline="") as fh:
+            fh.write(text)
+            fh.flush()
+            os.fsync(fh.fileno())
+        if dest.exists():
+            shutil.copymode(dest, tmp)
+        os.replace(tmp, dest)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
 
 
 def validate_package(source):
@@ -154,6 +212,14 @@ def main():
         targets.append((dsh_home / "skills", "pr-shepherd", source))
         records.append(dsh_patch_record(dsh_home / "cordis.patch.yml",
                                         (source / "agents" / "dsh" / "cordis.patch.yml").read_text()))
+    if args.opencode_root:
+        agents_dir = source / "agents" / "opencode"
+        for name in RETIRED_OPENCODE_AGENTS:
+            dest = args.opencode_root.expanduser().absolute() / name
+            link = dest.is_symlink() and Path(os.path.join(dest.parent, os.readlink(dest))).parent.resolve() == agents_dir
+            copy = dest.is_file() and not dest.is_symlink() and MANAGED_COPY in dest.read_text()
+            if link or copy:
+                records.append({"path": str(dest), "expected_target": "retired agent, removed", "status": "stale"})
     for dest, agent, text in copies:
         exists = dest.exists() or dest.is_symlink()
         ours = (dest.is_symlink() and dest.resolve() == agent) or (dest.is_file() and not dest.is_symlink() and MANAGED_COPY in dest.read_text())
@@ -182,16 +248,22 @@ def main():
         report["error"] = "Unmanaged destination collision; nothing overwritten"
         code = 2
     elif args.check:
-        code = 1 if any(r["status"] in ("missing", "outdated") for r in records) else 0
+        code = 1 if any(r["status"] in ("missing", "outdated", "stale") for r in records) else 0
     else:
         code = 0
         for r in records:
+            if r["status"] == "stale":
+                r["action"] = "remove"
+                if args.install:
+                    Path(r["path"]).unlink()
+                    r["status"] = "removed"
+                continue
             if r["status"] == "outdated" or (r["status"] == "missing" and r.get("expected_target", "").startswith("managed block")):
                 r["action"] = "patch"
                 if args.install:
                     dest = Path(r["path"])
                     dest.parent.mkdir(parents=True, exist_ok=True)
-                    dest.write_text(r["_text"])
+                    replace_file(dest, r["_text"], r["_current"])
                     r["status"] = "patched"
                 continue
             if r["status"] != "missing":
@@ -215,6 +287,7 @@ def main():
                 r["resolved_version"] = version
     for r in records:
         r.pop("_text", None)
+        r.pop("_current", None)
     print(json.dumps(report, indent=2))
     return code
 

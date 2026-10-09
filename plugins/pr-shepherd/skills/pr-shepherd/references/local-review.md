@@ -42,7 +42,9 @@ Each reviewer gets its generated prompt: absolute worktree, frozen SHAs, diff an
 manifest paths, acceptance criteria, applicable instructions, the role's scope
 **and what to leave to others** ([roles](roles.md)), the prohibitions (no edits,
 commits, pushes, GitHub comments, nested agents) and the JSON result format.
-Felix gets no other findings or author claims. Evidence agents do get the
+Name each call by what it checks, using the role's `label` from `manifest.json`
+("Bugs review", "Security review"; merged calls join them, e.g. "Guidelines and
+comments review"), not by persona or PR title. Felix gets no other findings or author claims. Evidence agents do get the
 specific findings. Check live identities before dispatch and again before
 accepting results; a changed snapshot invalidates affected results.
 

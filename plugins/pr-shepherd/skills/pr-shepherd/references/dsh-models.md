@@ -43,15 +43,20 @@ python3 scripts/install.py --install --dsh-home ~/.dsh
 - Appends the rows of `agents/dsh/cordis.patch.yml` to `<dsh-home>/cordis.patch.yml`
   (the home patch, applied to every profile) between
   `# >>> pr-shepherd (managed by install.py) >>>` and `# <<< pr-shepherd <<<`.
-  Re-running updates only that block; content outside it is kept. The installer
-  refuses a file that is not a YAML block list or that already defines the tool
-  ids outside the block.
-- Use `$DSH_HOME` if you set it. `dsh web` hot-reloads the home patch; restart
+  Re-running updates only that block; content outside it (line endings
+  included) is kept, and the file is replaced atomically. The installer refuses a
+  file that is not a YAML block list at column 0, or that already inserts these
+  rows or tool names outside the block. Overriding a managed row by id after the
+  block (`- id: pr-shepherd-flash` with `disabled: true`, say) is allowed.
+- The home patch applies to every profile, so both tools appear in every dsh
+  session, not only pr-shepherd runs.
+- The installer does not read `$DSH_HOME`; if you set it, pass
+  `--dsh-home "$DSH_HOME"`. `dsh web` hot-reloads the home patch; restart
   `headless`, `acp` and `sdk` sessions. Preview the result without booting:
   `dsh --profile headless --dump-config`.
 - DeepSeek credentials: the `deepseek-official` provider reads `DEEPSEEK_API_KEY`
-  (environment, `<dsh-home>/.credentials.yaml` or `.env`). dsh needs Node 22 or
-  newer; on Node 20 `dsh --version` prints nothing.
+  (environment, `<dsh-home>/.credentials.yaml` or `.env`). dsh requires Node
+  22.19+ or 24+ (its `engines` field).
 
 ## Dispatch
 
@@ -60,16 +65,26 @@ python3 scripts/install.py --install --dsh-home ~/.dsh
   prompt from `scripts/review_packet.py --runtime dsh`, `cwd` = the task tree.
   The tools pin provider, model and effort; do not use the generic `subagent`
   tool or its model selection for reviewers.
-- Reviewers get only `read`, `grep` and `glob`, cannot delegate (depth 1) and
-  run with the `never` approval policy. The web `minimal` preset has no
-  read/grep/glob tools, so delegation fails there: use the `standard` preset or
-  the `headless` profile.
+- **Before dispatch, check your own tool list.** If `pr_shepherd_flash` or
+  `pr_shepherd_flash_max` is missing, the install step did not run: do not
+  dispatch, mark the review incomplete and tell the user to run
+  `install.py --install --dsh-home ~/.dsh` and restart dsh. If `run_code` is
+  present, the session uses PTC tool presentation (the web `ptc` preset or
+  `tools.mode: ptc`), where reviewers also get `run_code` outside their tool
+  filter and are not read-only: do not dispatch; ask the user to switch to
+  native presentation.
+- Under native presentation reviewers get only `read`, `grep` and `glob`, cannot
+  delegate (depth 1) and run with the `never` approval policy.
+- `dsh --profile headless` is the designed path: there the tool rows sit beside
+  dsh's own delegation tools. In `dsh web` the host plane's tools are inherited
+  by preset agents in source, but this is not verified at runtime; the
+  `minimal` preset has no read/grep/glob tools, so delegation fails there.
 - At most 8 subagents run at once per session (`maxActiveSubagents`); a ninth
   start fails with `ACTIVATION_LIMIT_REACHED` instead of queueing. Start a wave
   of up to 8 roles in one assistant message, then the rest.
-- Results: on dsh 0.2.0 a call waits and returns the reviewer's answer; on 0.2.1
-  it returns `started subagent <id>` and the answer arrives as a completion
-  notice. Either way, a role without its JSON answer is incomplete.
+- Results: a call returns `started subagent <id>` and the answer arrives as a
+  completion notice (0.2.1 source; older releases may instead wait and return
+  the answer). Either way, a role without its JSON answer is incomplete.
 - Track progress with `todo_write`. The `schedule_*` tools exist only in `dsh web`;
   elsewhere, for the post-PR check use one bounded `sleep 300 && gh pr view …` or
   tell the user the check is still due.

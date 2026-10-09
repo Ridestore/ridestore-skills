@@ -141,7 +141,7 @@ python3 plugins/pr-shepherd/skills/pr-shepherd/scripts/install.py --install
 
 It links the skill into Claude Code (`~/.claude/skills`) and Codex
 (`~/.agents/skills`; pass `--codex-root ~/.codex/skills` for the older location)
-and the two reviewer definitions into `~/.claude/agents`. It refuses to
+and the Claude reviewer definitions into `~/.claude/agents`. It refuses to
 overwrite anything it didn't create. Don't combine it with the plugin in the
 same runtime, or everything is registered twice. Details are in
 [`maintenance.md`](skills/pr-shepherd/references/maintenance.md).
@@ -149,7 +149,7 @@ same runtime, or everything is registered twice. Details are in
 ## DeepSeek Harness (dsh)
 
 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`npm i -g
-@deepseek-ai/dsh`, Node 22 or newer) runs the reviewers on DeepSeek models only.
+@deepseek-ai/dsh`, Node 22.19+ or 24+) runs the reviewers on DeepSeek models only.
 It has no plugin marketplace for this repository, so install from a clone:
 
 ```sh
@@ -164,8 +164,11 @@ python3 plugins/pr-shepherd/skills/pr-shepherd/scripts/install.py --install --ds
   [`agents/dsh/cordis.patch.yml`](skills/pr-shepherd/agents/dsh/cordis.patch.yml)
   to `~/.dsh/cordis.patch.yml`, which every dsh profile applies. They go in a
   block between `# >>> pr-shepherd (managed by install.py) >>>` and
-  `# <<< pr-shepherd <<<`. Re-running the installer updates only that block,
-  and it refuses files it can't append to safely.
+  `# <<< pr-shepherd <<<`. Re-running the installer updates only that block
+  (atomically, keeping everything else byte for byte), and it refuses files it
+  can't append to safely. Because the home patch applies to every profile, the
+  two tools appear in every dsh session. If you set `$DSH_HOME`, pass
+  `--dsh-home "$DSH_HOME"`.
 
   | Tool | Model | Effort | Roles |
   | --- | --- | --- | --- |
@@ -174,16 +177,20 @@ python3 plugins/pr-shepherd/skills/pr-shepherd/scripts/install.py --install --ds
 
   DeepSeek's efforts are `off`, `low`, `high` and `max`. Roles at medium or high
   on the other runtimes use `high`; roles at xhigh use `max`.
-- **Read-only:** both tools allow only `read`, `grep` and `glob`, cap delegation
-  depth at 1 (reviewers can't start agents), and inherit dsh's `never` approval
-  policy for children.
+- **Read-only, with native tool presentation only:** both tools allow only
+  `read`, `grep` and `glob`, cap delegation depth at 1 (reviewers can't start
+  agents), and inherit dsh's `never` approval policy for children. In PTC
+  presentation (the web `ptc` preset or `tools.mode: ptc`) dsh also gives every
+  agent `run_code`, outside the tool filter, so the skill refuses to dispatch
+  reviewers there.
 - **Credentials:** the `deepseek-official` provider reads `DEEPSEEK_API_KEY`
   from the environment, `~/.dsh/.credentials.yaml` or `.env`.
 - **Limits:**
   - At most 8 reviewers run at once per session (`maxActiveSubagents`), so the
     coordinator starts them in waves.
-  - The web `minimal` preset has no read/grep/glob tools; use `standard` or
-    `dsh --profile headless`.
+  - `dsh --profile headless` is the designed path. In `dsh web` the tools should
+    reach preset agents (the host's tools are inherited in source), but that is
+    not verified; the `minimal` preset has no read/grep/glob tools at all.
   - `dsh web` reloads the patch live; restart other profiles after installing.
 - **Check without running a model:** `dsh --profile headless --dump-config`
   shows the composed tools.
