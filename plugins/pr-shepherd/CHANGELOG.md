@@ -19,9 +19,9 @@
 - OpenCode DeepSeek fallback uses `deepseek-flash` for every role (no V4-Pro).
 - Faster reviews: every role runs one effort step lower (Deep-review roles at
   high/xhigh took 6–8 minutes each). Claude: Opus never above medium
-  (`opus-reviewer-medium` for Maya, Theo, Felix and Remy+), Sonnet at medium
-  (new `sonnet-reviewer-medium`) for Finn, Jasper, routine Remy, Ruby, Vera,
-  Otis, Milo, Luna, Zoe and Cleo, Sonnet at high for Nora, Oscar and Iris;
+  and only for Maya and Remy+ (`opus-reviewer-medium`), Sonnet at medium (new
+  `sonnet-reviewer-medium`) for Theo, Felix, Finn, Jasper, routine Remy, Ruby,
+  Vera, Otis, Milo, Luna, Zoe and Cleo, Sonnet at high for Nora, Oscar and Iris;
   `opus-reviewer`, `opus-reviewer-xhigh` and `sonnet-reviewer-xhigh` are removed.
   Codex/OpenCode: Sol at medium, Luna at high, Remy+ on Sol at high (OpenCode
   agents `pr-shepherd-sol` now medium, `pr-shepherd-luna-high`,

@@ -16,10 +16,10 @@ choices take precedence. Keep the current coordinator and its reasoning setting.
 | Coordinator | Inherit current parent; recommend `claude-opus-5-5` for a new session | Inherit parent | Existing parent |
 | Finn — guidelines | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
 | Maya — bugs / incremental fix check | `claude-opus-5-5` | medium | opus-reviewer-medium |
-| Theo — architecture | `claude-opus-5-5` | medium | opus-reviewer-medium |
+| Theo — architecture | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
 | Nora — types | `claude-sonnet-5-5` | high | sonnet-reviewer |
 | Jasper — comments and intent | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
-| Felix — independent reviewer | `claude-opus-5-5` | medium | opus-reviewer-medium |
+| Felix — independent reviewer | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
 | Remy — security, routine | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
 | Remy+ — security: auth, permissions, trust boundaries, secrets, infra, cross-service | `claude-opus-5-5` | medium | opus-reviewer-medium |
 | Ruby — performance | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
@@ -30,14 +30,14 @@ choices take precedence. Keep the current coordinator and its reasoning setting.
 | Otis / Milo / Luna — fact check, confidence, reachability | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
 | Ada / Eli / Sofia / Hugo / Max — optional companion duties | Coordinator, or `claude-sonnet-5-5` if delegated | Coordinator's own, or medium when delegated | Not counted as review |
 
-Since 2.4.0 Opus never runs above medium, and everything runs one effort step
-lower than before: Sonnet at high for types, code quality and language, medium
-for every other role. Opus (at medium) is kept for bugs, architecture, the
-independent pass and sensitive security (Remy+); routine Remy and the evidence
-and reflection roles (Vera, Otis, Milo, Luna, Zoe, Cleo) run Sonnet. On a real
-Deep review (2026-10-09) Opus at high took about 6.5 minutes and Sonnet at xhigh
-about 8. Maya and Theo have run Opus at medium since 2.1.0. Whether medium finds
-as much is not measured yet; the xhigh and Opus-high definitions were removed.
+Since 2.4.0 Opus never runs above medium and is used only for bugs (Maya) and
+sensitive security (Remy+); every other role runs Sonnet, at high for types,
+code quality and language and at medium for the rest. Felix on Sonnet also gives
+the independent pass a different model than Maya's, so their blind spots differ.
+Everything runs one effort step lower than before: on a real Deep review
+(2026-10-09) Opus at high took about 6.5 minutes and Sonnet at xhigh about 8.
+Maya and Theo have run at medium since 2.1.0. Whether medium finds as much is
+not measured yet; the xhigh and Opus-high definitions were removed.
 
 ## Dispatch
 
