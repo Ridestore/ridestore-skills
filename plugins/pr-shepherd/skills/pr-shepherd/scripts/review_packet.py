@@ -179,19 +179,28 @@ BINARY_ASSET = re.compile(
     r"\.(png|jpe?g|gif|webp|avif|ico|icns|bmp|tiff?|heic|psd|ai|sketch|fig|woff2?|ttf|otf|eot|pdf|docx?|xlsx?|pptx?|odt|ods|odp|key|numbers|pages"
     r"|zip|gz|tgz|bz2|xz|zst|7z|rar|tar|jar|war|apk|aab|ipa|dmg|iso|whl|gem|nupkg|node|tflite|ds_store|wasm|mp3|mp4|m4a|wav|flac|ogg|webm|mov|avi|mkv|glb|gltf|fbx|obj|stl"
     r"|db|sqlite3?|parquet|avro|orc|feather|npy|npz|pkl|pickle|onnx|pt|h5|mo|bin|exe|dll|so|dylib|a|o|pyc|class|lockb)$", re.I)
-# Output that is hidden on purpose: lockfiles, minified bundles, maps, snapshots, generated code.
+# Output that is hidden on purpose: source maps, snapshots, generated code.
 # Root dist/build/out are not on it: GitHub Actions and similar run their committed bundle.
 _LOCKFILES = r"package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?|Cargo\.lock|poetry\.lock|Pipfile\.lock|uv\.lock|composer\.lock|Gemfile\.lock|go\.sum|flake\.lock"
 _GENERATED = r"(^|/)(__generated__|generated|__snapshots__)/|\.generated\.|_pb2\.py$|\.pb\.go$"
-HIDDEN_BY_DESIGN = re.compile(r"(^|/)(" + _LOCKFILES + r")$|\.(min\.(js|css)|map|snap|lock)$|" + _GENERATED, re.I)
+HIDDEN_BY_DESIGN = re.compile(r"\.(map|snap)$|" + _GENERATED, re.I)
+# Lockfiles and minified bundles are often collapsed too, but they install or ship code: hiding
+# their lines in git diff (-diff, binary, filter=) counts; only GitHub's linguist-* is harmless.
+SHIPPED_OUTPUT = re.compile(r"(^|/)(" + _LOCKFILES + r")$|\.min\.(js|css)$", re.I)
 GITATTRIBUTES = re.compile(r"(^|/)\.gitattributes$")
 # Attributes that never hide or collapse a file's lines; anything else (-diff,
-# binary, linguist-generated, a macro) can, now or in a later PR.
+# binary, filter=, linguist-generated, a macro) can, now or in a later PR.
 HARMLESS_ATTRIBUTES = {"text", "eol", "crlf", "whitespace", "working-tree-encoding", "encoding", "export-ignore", "export-subst",
                        "merge", "ident", "delta", "diff", "linguist-language", "linguist-detectable", "linguist-documentation"}
 # `filter` is not harmless: an LFS or git-crypt filter stores pointer or cipher text instead of the source.
 # Committed keys and certificates count anywhere, also under tests and fixtures: a key is never prose.
-KEY_FILE = re.compile(r"\.(p12|pfx|jks|keystore|pem|key|der|ppk|p8|crt|cer|asc|gpg|kdbx)$|(^|/)id_(rsa|dsa|ecdsa|ed25519)(?!\.pub$)[^/]*$", re.I)
+# (.asc is left out: it is also AsciiDoc and detached release signatures.)
+KEY_FILE = re.compile(r"\.(p12|pfx|jks|keystore|pem|key|der|ppk|p8|crt|cer|gpg|kdbx)$|(^|/)id_(rsa|dsa|ecdsa|ed25519)(?:_[a-z0-9_-]+)?$", re.I)
+
+
+# Committed credential stores and env files (not the .example/.sample/.template kind).
+CREDENTIAL_FILE = re.compile(r"(^|/)\.env(\.(?!example$|sample$|template$|dist$)[^/]+)?$|(^|/)\.(npmrc|netrc|pgpass|pypirc|dockercfg)$|\.keytab$"
+                             r"|(^|/)(credentials|service[-_]account[^/]*|client_secret[^/]*)\.json$|(^|/)\.docker/config\.json$", re.I)
 
 
 def _hides_source(path):
@@ -205,16 +214,22 @@ def _hides_source(path):
 def _hides_lines(attribute_line):
     """An added .gitattributes line that can hide or collapse source: any attribute
     outside HARMLESS_ATTRIBUTES (or unsetting diff) on a pattern that is not an
-    asset suffix. `*.png binary` and LFS lines hide nothing worth reading."""
+    asset, map, snapshot or generated-output name; patterns ending in / or * are
+    never exempt. On lockfiles and minified bundles only linguist-* is harmless.
+    `*.png binary` and `*.psd filter=lfs` hide nothing worth reading; `filter=` on
+    source does (LFS or git-crypt store pointer or cipher text)."""
     tokens = attribute_line.split()
     if not tokens or tokens[0].startswith("#"):
         return False
     pattern, attributes = tokens[0], tokens[1:]
-    if not pattern.startswith("[attr]") and not pattern.endswith(("/", "*")) and (
-            BINARY_ASSET.search(pattern) or HIDDEN_BY_DESIGN.search(pattern)):
-        return False  # `*.png binary`, `yarn.lock -diff`: assets and output hidden by design
+    exact = not pattern.startswith("[attr]") and not pattern.endswith(("/", "*"))
+    if exact and (BINARY_ASSET.search(pattern) or HIDDEN_BY_DESIGN.search(pattern)):
+        return False
+    shipped = exact and SHIPPED_OUTPUT.search(pattern)
     for attribute in attributes:
         name = attribute.lstrip("-!").split("=")[0]
+        if shipped and name.startswith("linguist-"):
+            continue
         if attribute in ("-diff", "!diff") or name not in HARMLESS_ATTRIBUTES:
             return True
     return False
@@ -246,6 +261,8 @@ def security_tier(diff_text, extra_signals=None):
             matches.setdefault("diff attributes", set()).add(path)
         if kind == "file" and KEY_FILE.search(path):
             matches.setdefault("key or certificate file", set()).add(path)
+        if kind == "file" and CREDENTIAL_FILE.search(path):
+            matches.setdefault("credential file", set()).add(path)
         if kind not in ("file", "add") or NOT_CODE.search(path):
             continue
         text = path if kind == "file" else text
@@ -321,8 +338,8 @@ LOOP_HEAD = re.compile(r"^\s*(?:async\s+)?(?:for(?:each)?|while)\b|\.(?:for_each
     # Ruby iterators need a Ruby block (do ... or { |x| ...), so `if (checkout.step) {` is no loop.
     r"|\.(?:(?:\w{1,20}_)?each(?:_\w{1,20}|[A-Z]\w{0,20})?|times|upto|step|map|flat_map|select|reject)\b[^\n]{0,80}"
     r"(?:\bdo(?:\s*\|[^|]{0,40}\|)?|\{\s*\|[^|]{0,40}\|)\s*$"
-    r"|^\s*(?:until\b|loop\s+do\b)|\.(?:in_batches|find_in_batches|downto)\b[^\n]{0,80}\bdo\b"
-    r"|\.(?:each|map|flatMap|filter|reduce|some|every|forEach)\(\s*(?:[\w$.]{1,40},\s*)?(?:async\s+)?function\b[^\n]{0,80}\{\s*$|^\s*(?:do|loop)\s*\{|\.(?:forEach|map|flatMap|each)\(\s*(?:[\w$.]{1,40},\s*)?(?:async\b|\(?[^()=\n]{0,80}\)?\s*(?::[^=\n]{1,60})?=>\s*\{\s*$)")
+    r"|^\s*(?:until\b(?!\s*[:=(])|loop\s+do\b)|\.(?:in_batches|find_in_batches|downto)\b[^\n]{0,80}\bdo\b"
+    r"|\.(?:each|map|flatMap|filter|reduce|some|every|forEach)\(\s*(?:[\w$.]{1,40},\s*)?(?:async\s+)?function\b[^\n]{0,80}\{\s*$|^\s*(?:do|loop)\s*\{|\.(?:each|map|flatMap|filter|reduce|some|every|forEach)\(\s*(?:[\w$.]{1,40},\s*)?(?:async\b|\(?[^()=\n]{0,80}\)?\s*(?::[^=\n]{1,60})?=>\s*\{\s*$)")
 LOOP_COST = re.compile(_SQL + "|" + _ORM + "|" + _NET + r"|\bawait\b")
 LOOP_MAX = 40  # body lines followed after a loop header
 
