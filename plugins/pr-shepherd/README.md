@@ -6,8 +6,7 @@ agents check the change **before the first push**. The agent fixes every
 confirmed finding, opens the PR with the review evidence, then comes back to
 handle review threads and CI.
 
-It works in any GitHub repository, in **Claude Code** and **Codex** (and in
-OpenCode as a plain skill).
+It works in any GitHub repository, in **Claude Code**, **Codex** and **OpenCode**.
 
 ## Usage
 
@@ -75,10 +74,12 @@ It never merges or deploys unless you say so separately.
 | --- | --- |
 | Claude Code | Four native subagents shipped with the plugin, limited to Read/Grep/Glob: `opus-reviewer` and `sonnet-reviewer` (`claude-opus-5-5` / `claude-sonnet-5-5` at high) for most roles, and `opus-reviewer-xhigh` / `sonnet-reviewer-xhigh` at xhigh for types, code quality, language and verification, matching the Codex matrix. As a plugin they appear as `pr-shepherd:opus-reviewer` and so on. |
 | Codex | Native Codex subagents: mostly `gpt-6.1-sol` at high effort, `gpt-6-luna` at xhigh for types, code quality, language and verification, `gpt-6-astra` at medium for security. |
+| OpenCode | Four subagents in `agents/opencode/` with mixed providers: Maya, Zoe and Cleo on Claude Opus 5.5, everything else on the Codex models above, so Felix's independent pass runs on a different model family than Maya's. Not yet verified at runtime. Parallel reviewers need `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true`. |
 
 Full role-to-model tables:
 [`claude-models.md`](skills/pr-shepherd/references/claude-models.md),
-[`codex-models.md`](skills/pr-shepherd/references/codex-models.md). Each one has a
+[`codex-models.md`](skills/pr-shepherd/references/codex-models.md),
+[`opencode-models.md`](skills/pr-shepherd/references/opencode-models.md). Each one has a
 **Last verified** line saying which combinations actually ran and when;
 `scripts/check_matrix.py` checks the definitions against the tables and warns
 when a matrix hasn't been verified for 60 days.
@@ -114,7 +115,15 @@ codex plugin marketplace add Ridestore/ridestore-skills
 codex plugin add pr-shepherd@ridestore-skills
 ```
 
-OpenCode and updates: see the [repository README](../../README.md#install).
+OpenCode: the skills index from the [repository README](../../README.md#opencode)
+delivers the skill, but OpenCode reviewers must be installed from a clone:
+
+```sh
+python3 plugins/pr-shepherd/skills/pr-shepherd/scripts/install.py --install \
+  --opencode-root ~/.config/opencode/agents
+```
+
+Updates: see the [repository README](../../README.md#install).
 
 If you work on the skill itself, don't install the plugin. Clone this repository
 and link the package with its installer instead:
@@ -138,11 +147,13 @@ skills/pr-shepherd/
   SKILL.md                    the workflow (version in metadata)
   agents/openai.yaml          Codex skill metadata
   agents/*-reviewer*.md       the four Claude reviewer definitions (high and xhigh)
+  agents/opencode/*.md        the four OpenCode reviewer agents (mixed providers)
   references/
     local-review.md           freezing the snapshot, review packet, fix loop, pass gate
     roles.md                  roles, what each leaves to others, Basic / Standard / Deep routing
     claude-models.md          Claude role-to-model matrix
     codex-models.md           Codex role-to-model matrix
+    opencode-models.md        OpenCode role-to-model matrix and dispatch notes
     progress.md               visible progress while agents run
     post-pr.md                follow-up on threads and checks after the PR
     attestation.md            optional marker + label for review automation

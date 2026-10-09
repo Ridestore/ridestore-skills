@@ -46,6 +46,7 @@ def main():
     parser.add_argument("--codex-root", type=Path, default=Path.home() / ".agents/skills")
     parser.add_argument("--claude-root", type=Path, default=Path.home() / ".claude/skills")
     parser.add_argument("--claude-agents-root", type=Path, default=Path.home() / ".claude/agents")
+    parser.add_argument("--opencode-root", type=Path, help="also link agents/opencode/*.md here (e.g. ~/.config/opencode/agents)")
     args = parser.parse_args()
     source = args.source.expanduser().resolve()
     validate_package(source)
@@ -66,6 +67,9 @@ def main():
             raise ValueError(f"Agent definition name mismatch: {agent}")
         models[name] = field(text, "model")
         targets.append((args.claude_agents_root, name + ".md", agent))
+    if args.opencode_root:
+        for agent in sorted((source / "agents" / "opencode").glob("*.md")):
+            targets.append((args.opencode_root, agent.name, agent))
     records = []
     for root, name, expected in targets:
         dest = root.expanduser().absolute() / name

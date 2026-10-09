@@ -28,7 +28,10 @@ python3 scripts/install.py --check      # 0 linked, 1 missing, 2 collision/inval
 
 Defaults: `~/.agents/skills/pr-shepherd` for Codex (pass `--codex-root
 ~/.codex/skills` on hosts that use it), `~/.claude/skills/pr-shepherd` for
-Claude, and one link per `agents/*-reviewer*.md` under `~/.claude/agents`. Every
+Claude, and one link per `agents/*-reviewer*.md` under `~/.claude/agents`.
+For OpenCode add `--opencode-root ~/.config/opencode/agents` to link
+`agents/opencode/*.md`; the remote skill index delivers the skill text but
+cannot register agents, so OpenCode reviewers always need this step. Every
 root can be explicit, and `--source` picks another complete package. The
 installer fetches nothing, is idempotent, and refuses to overwrite files or
 links it did not create; reconcile a collision by hand.
