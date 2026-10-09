@@ -73,6 +73,27 @@ def main(argv=None):
         if fm.get("effort") != effort:
             errors.append(f"{cells[0]}: table says effort {effort}, {name} pins {fm.get('effort')}")
 
+    oc_used = set()
+    for cells in table_rows(os.path.join(refs, "opencode-models.md")):
+        if len(cells) < 4 or not re.fullmatch(r"[a-z0-9-]+", cells[3]):
+            continue
+        name, model, effort = cells[3], cells[1].strip("`"), cells[2]
+        oc_used.add(name)
+        path = os.path.join(args.skill_dir, "agents", "opencode", f"{name}.md")
+        if not os.path.isfile(path):
+            errors.append(f"opencode {cells[0]}: agent {name} not found in agents/opencode/")
+            continue
+        fm = frontmatter(path)
+        if fm.get("model") != model:
+            errors.append(f"opencode {cells[0]}: table pins {model}, {name} pins {fm.get('model')}")
+        if fm.get("reasoningEffort", "provider default") != effort:
+            errors.append(f"opencode {cells[0]}: table says effort {effort}, {name} sets {fm.get('reasoningEffort', 'none')}")
+        if fm.get("mode") != "subagent":
+            errors.append(f"{path}: mode must be subagent")
+    for path in glob.glob(os.path.join(args.skill_dir, "agents", "opencode", "*.md")):
+        if os.path.basename(path)[:-3] not in oc_used:
+            errors.append(f"agents/opencode/{os.path.basename(path)} is not used by references/opencode-models.md")
+
     defined = {os.path.basename(p)[:-3] for p in glob.glob(os.path.join(args.skill_dir, "agents", "*-reviewer*.md"))}
     for name in sorted(defined - used):
         errors.append(f"agents/{name}.md is not used by references/claude-models.md")
@@ -82,10 +103,13 @@ def main(argv=None):
             errors.append(f"{args.plugin_manifest}: agents list misses {name}")
 
     today = datetime.date.fromisoformat(args.today) if args.today else datetime.date.today()
-    for matrix in ("claude-models.md", "codex-models.md"):
+    for matrix in ("claude-models.md", "codex-models.md", "opencode-models.md"):
+        text = open(os.path.join(refs, matrix), encoding="utf-8").read()
         date = last_verified(os.path.join(refs, matrix))
-        if not date:
-            errors.append(f"{matrix}: no 'Last verified: YYYY-MM-DD' line")
+        if not date and re.search(r"Last verified:\s*not yet", text):
+            warnings.append(f"{matrix}: never verified at runtime; run one review and record it")
+        elif not date:
+            errors.append(f"{matrix}: no 'Last verified: YYYY-MM-DD' (or 'not yet') line")
         elif (today - date).days > args.max_age_days:
             (errors if args.strict else warnings).append(
                 f"{matrix}: last verified {date} ({(today - date).days} days ago); re-run a native review and update it")

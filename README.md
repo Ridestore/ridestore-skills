@@ -51,7 +51,9 @@ Add it to `opencode.json` (project) or `~/.config/opencode/opencode.json` (globa
 ```
 
 OpenCode caches the skills and downloads them again when the plugin version
-changes. If you prefer a local clone, list its path instead:
+changes. Plugins that ship subagents (like `pr-shepherd`'s reviewers) need one more
+step from a clone, because the skills index cannot register agents; see the
+plugin's README. If you prefer a local clone, list its path instead:
 `"skills": ["~/Projects/ridestore-skills/plugins/<plugin>/skills"]`.
 
 ### Only the skill, without a plugin

@@ -66,6 +66,16 @@ class ReviewPacketTest(unittest.TestCase):
         self.assertIn("Effort is high.", maya)
         self.assertIn("no other reviewer's findings", open(os.path.join(out, "prompts", "felix.md")).read())
 
+    def test_opencode_runtime_uses_its_own_agents(self):
+        out = os.path.join(self.tmp.name, "oc")
+        self.assertEqual(review_packet.main(["--repo", self.repo, "--base", "main", "--roles", "maya,felix",
+                                             "--runtime", "opencode", "--out", out]), 0)
+        roles = json.load(open(os.path.join(out, "manifest.json")))["roles"]
+        # Felix double-checks on a different model family than Maya.
+        self.assertTrue(roles["maya"]["model"].startswith("anthropic/"))
+        self.assertTrue(roles["felix"]["model"].startswith("openai/"))
+        self.assertEqual(roles["felix"]["definition"], "pr-shepherd-sol")
+
     def test_stale_terms_fail_the_self_check(self):
         code, out = self.run_packet("--stale", "runs at medium")
         self.assertEqual(code, 1)

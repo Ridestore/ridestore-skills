@@ -16,6 +16,10 @@
   definitions against the tables and flags old verifications (run in validation).
 - `claude plugin eval` suite with four cases; script tests run in CI.
 - `SKILL.md` is about 40% shorter and says which reference to read when.
+- OpenCode support: four reviewer agents in `agents/opencode/` with mixed
+  providers (Felix's independent pass on a different model family than Maya),
+  `references/opencode-models.md`, `review_packet.py --runtime opencode`,
+  `install.py --opencode-root`, and matrix checks. Not yet verified at runtime.
 
 - Renamed from `ridestore-task` to `pr-shepherd` and made it work in any GitHub
   repository. Invocation is now `/pr-shepherd` (`/pr-shepherd:pr-shepherd` as a
