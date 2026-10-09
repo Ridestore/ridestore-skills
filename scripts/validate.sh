@@ -7,6 +7,11 @@ cd "$root"
 
 python3 "$root/scripts/validate_catalogs.py"
 python3 "$root/scripts/build_opencode_index.py" --check
+for dir in plugins/*/; do
+  matrix="$dir/skills/${dir#plugins/}"
+  matrix="${matrix%/}/scripts/check_matrix.py"
+  [ -f "$matrix" ] && python3 "$matrix" --plugin-manifest "$dir.claude-plugin/plugin.json"
+done
 
 if command -v claude >/dev/null 2>&1; then
   claude plugin validate .

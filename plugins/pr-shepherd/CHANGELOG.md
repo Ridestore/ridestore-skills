@@ -2,6 +2,21 @@
 
 ## 2.0.0
 
+- Self-check before dispatch: `scripts/review_packet.py` freezes the snapshot,
+  exports the full diff, lists the instruction files, reports values the change
+  replaced that are still present (`--stale`) and writes one prompt per role.
+- Less reviewer overlap: every role states what it leaves to others; doc-heavy
+  changes run Finn and Jasper as one call; `scripts/merge_findings.py` groups the
+  same issue across roles and flags unfinished or stale-head reviewers. Progress
+  updates and the PR body show each role's tokens and duration.
+- Two more Claude reviewer definitions at xhigh effort (`opus-reviewer-xhigh`,
+  `sonnet-reviewer-xhigh`) for the roles that run at xhigh on Codex; the installer
+  discovers every `agents/*-reviewer*.md`.
+- Model matrices carry a `Last verified` line; `scripts/check_matrix.py` checks
+  definitions against the tables and flags old verifications (run in validation).
+- `claude plugin eval` suite with four cases; script tests run in CI.
+- `SKILL.md` is about 40% shorter and says which reference to read when.
+
 - Renamed from `ridestore-task` to `pr-shepherd` and made it work in any GitHub
   repository. Invocation is now `/pr-shepherd` (`/pr-shepherd:pr-shepherd` as a
   plugin) and `$pr-shepherd`.

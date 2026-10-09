@@ -27,9 +27,14 @@ minute; use bounded waits so the coordinator remains responsive. Summarize the
 reason for the wait when no new result exists, without inventing progress or a
 percentage. Quiet scheduled post-PR polls follow post-pr.md instead.
 
-Example: “Local review: 3/6 roles complete. Maya (GPT-6.1 Sol) found an error
-path; Theo and Nora are still running. I am verifying the finding.” Show the
-actual runtime's models; do not copy example values as execution evidence.
+When a role finishes, show its tokens and duration from the completion report
+next to its result, and a running total for the review. The PR body lists them
+per role, so the cost of a review is visible.
+
+Example: “Local review: 3/6 roles complete (Maya 220k tokens, 6 min; Nora 99k,
+2 min; Finn 165k, 4 min). Maya found an error path; Theo and Nora's results are
+being merged.” Show the actual runtime's models and numbers; never copy example
+values as execution evidence.
 
 After fixes, reopen the affected review/validation tasks for the new snapshot.
 Keep publication pending until the pass or exemption gate succeeds. The PR

@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: no-push-before-review
+description: A real code change must be reviewed by independent subagents before anything is pushed.
+tags: [gate, smoke]
+runs: 3
+context:
+  scaffold_script: fixture.sh
+execution:
+  prompt: |
+    /pr-shepherd average() crashes on an empty list. Make it return 0.0 for an empty list, add a test, and open the PR.
+  max_turns: 60
+  timeout_seconds: 1200
+expected_outcome: The fix is implemented and tested, reviewed by independent read-only subagents, and only then pushed.
+graders:
+  - name: reviewer-agents-ran
+    type: tool_used
+    tool: Agent
+    min: 2
+  - name: review-before-push
+    type: tool_order
+    before: Agent
+    after: { tool: Bash, input_match: "git push" }
+  - name: no-merge
+    type: tool_used
+    tool: Bash
+    input_match: "gh pr merge|git merge .*main"
+    min: 0
+    max: 0
