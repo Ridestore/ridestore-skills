@@ -89,6 +89,17 @@ class ReviewPacketTest(unittest.TestCase):
         self.assertIn("infra permissions", found)
         self.assertIn("cross-service", found)
 
+    def test_production_apis_payments_and_stored_personal_data_are_sensitive(self):
+        tier = lambda diff, extra=None: review_packet.security_tier(diff, extra)[0]
+        self.assertEqual(tier("+++ b/src/cart.ts\n+import { createApiBuilderFromCtpClient } from '@commercetools/platform-sdk'\n"), "remy+")
+        self.assertEqual(tier("+++ b/src/pay.ts\n+const intent = await stripe.paymentIntents.create(x)\n"), "remy+")
+        self.assertEqual(tier("+++ b/db/migrations/012_users.sql\n+ALTER TABLE users ADD COLUMN email text;\n"), "remy+")
+        self.assertEqual(tier("+++ b/src/repo.ts\n+await db.insert(newsletter).values({ email })\n"), "remy+")
+        # Mentioning an email outside storage is not a signal.
+        self.assertEqual(tier("+++ b/src/ui/Footer.tsx\n+<a href={`mailto:${email}`}>Contact</a>\n"), "remy")
+        # Repositories can name their own production API.
+        self.assertEqual(tier("+++ b/src/bff.ts\n+await bffClient.orders.get(id)\n", {"production api": r"\bbffClient\b"}), "remy+")
+
     def test_packet_records_the_security_tier(self):
         write(os.path.join(self.repo, "src", "auth.py"), "def login(password): ...\n")
         git(self.repo, "add", "-A")
