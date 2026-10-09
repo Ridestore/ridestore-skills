@@ -306,6 +306,8 @@ class ReviewPacketTest(unittest.TestCase):
         self.assertNotIn(name, spec(hunk("if (course.teacher) {", "  const u = await load(course.teacher.id)", "}")).get("ruby", {}))
         self.assertNotIn(name, spec(hunk("if (checkout.step === 'payment') {", "  await createPaymentIntent(order)", "}")).get("ruby", {}))
         self.assertNotIn(name, spec(hunk("if (quota.reached) {", "  await notify(user)", "}")).get("ruby", {}))
+        self.assertNotIn(name, spec(hunk("  until: {", "    date: await nextSlot(),", "  },")).get("ruby", {}))
+        self.assertIn(name, spec(hunk("const t = await items.reduce(async (acc, x) => {", "  return acc + await load(x)", "}, 0)")).get("ruby", {}))
         for head in ("await Promise.all(rows.map((row: Row) => {", "$.each(items, function () {", "_.each(xs, (x) => {",
                      "rows.map(function (r) {"):
             with self.subTest(head=head):
@@ -442,22 +444,36 @@ class ReviewPacketTest(unittest.TestCase):
     def test_binary_attribute_and_key_signals(self):
         binary = lambda p: f"diff --git a/{p} b/{p}\nindex 1..2 100644\nBinary files a/{p} and b/{p} differ\n"
         for path in ("src/x.ts", "web/index.html", "Dockerfile", "deploy/app.yaml", "e2e/global-setup.ts", "vendor/analytics.js",
-                     "conftest.py", "pkg/a_test.go", "dist/index.js"):
+                     "conftest.py", "pkg/a_test.go", "dist/index.js", "package-lock.json", "public/app.min.js"):
             with self.subTest(path=path):
                 self.assertIn("hidden source content", review_packet.security_tier(binary(path))[1])
-        for path in ("web/logo.png", "fonts/a.woff2", "public/app.min.js", "src/generated/api.ts", "docs/spec.xlsx",
+        for path in ("web/logo.png", "fonts/a.woff2", "public/app.js.map", "src/generated/api.ts", "docs/spec.xlsx",
                      "tests/fixtures/model.onnx", "data/sample.parquet"):
             with self.subTest(path=path):
                 self.assertNotIn("hidden source content", review_packet.security_tier(binary(path))[1])
         # Only attributes that can hide or collapse source count (HARMLESS_ATTRIBUTES, asset suffixes and comments do not).
         for line in ("* text=auto eol=lf", "CHANGELOG.md merge=union", "*.psd filter=lfs diff=lfs merge=lfs -text",
-                     "*.png binary", "# binary files", "yarn.lock -diff", "*.min.js binary"):
+                     "*.png binary", "# binary files", "yarn.lock linguist-generated", "*.min.js linguist-generated",
+                     "src/app.js.map -diff"):
             with self.subTest(line=line):
                 self.assertEqual(review_packet.security_tier(f"+++ b/.gitattributes\n+{line}\n")[0], "remy")
+        for path in ("deploy/id_rsa", "keys/id_ed25519_github", "ios/AuthKey_ABC.p8", "tests/fixtures/dev.pem", ".ssh/id_dsa"):
+            with self.subTest(path=path):
+                self.assertIn("key or certificate file", review_packet.security_tier(f"+++ b/{path}\n+x\n")[1])
+        for path in ("keys/id_rsa.pub", "keys/id_rsa_work.pub", "src/auth/id_rsa_parser.py", "docs/guide.asc"):
+            with self.subTest(path=path):
+                self.assertNotIn("key or certificate file", review_packet.security_tier(f"+++ b/{path}\n+x\n")[1])
+        for path in (".env", ".env.production", "app/.npmrc", ".netrc", "deploy/svc.keytab", "gcp/service-account-prod.json"):
+            with self.subTest(path=path):
+                self.assertIn("credential file", review_packet.security_tier(f"+++ b/{path}\n+x\n")[1])
+        for path in (".env.example", ".env.sample", "src/env.ts"):
+            with self.subTest(path=path):
+                self.assertNotIn("credential file", review_packet.security_tier(f"+++ b/{path}\n+x\n")[1])
         self.assertIn("key or certificate file", review_packet.security_tier(
             "diff --git a/certs/client.p12 b/certs/client.p12\nnew file mode 100644\nBinary files /dev/null and b/certs/client.p12 differ\n")[1])
         for line in ("*.ts -diff", "src/payments/** linguist-generated=true", "src/payments/*.ts opaque", "[attr]opaque -diff",
-                     "src/payments/** filter=lfs diff=lfs merge=lfs -text", "src/checkout.a* -diff", "src/core.a/** -diff"):
+                     "src/payments/** filter=lfs diff=lfs merge=lfs -text", "src/checkout.a* -diff", "src/core.a/** -diff",
+                     "package-lock.json -diff", "yarn.lock binary", "*.min.js binary"):
             with self.subTest(line=line):
                 self.assertEqual(review_packet.security_tier(f"+++ b/.gitattributes\n+{line}\n")[0], "remy+")
         self.assertEqual(review_packet.security_tier("+++ b/.gitattributes\n-*.ts -diff\n")[0], "remy")
