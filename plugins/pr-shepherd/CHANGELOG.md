@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.3.0
+
+- OpenCode provider fallback: when neither GPT (OpenAI) nor Claude (Anthropic) is
+  connected, `install.py --opencode-root` installs the reviewer agents on DeepSeek
+  models (reasoner for deep roles, chat for the rest), or else on GLM. Detection
+  reads API-key variables, OpenCode logins and config; `--opencode-profile`
+  overrides. Single-family profiles are flagged as not cross-family.
+
 ## 2.2.0
 
 - Codex: Maya (bugs) and Theo (architecture) run GPT-6.1 Sol at medium, as in the

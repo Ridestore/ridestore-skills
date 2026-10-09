@@ -166,6 +166,45 @@ class MergeFindingsTest(unittest.TestCase):
         self.assertEqual(merge_findings.main([a, "--head", "abc", "--out", self.tmp.name]), 0)
 
 
+class OpenCodeProfileTest(unittest.TestCase):
+    def run_install(self, env_keys, config=None, *extra):
+        home = tempfile.mkdtemp()
+        if config is not None:
+            write(os.path.join(home, ".config", "opencode", "opencode.json"), config)
+        root = os.path.join(home, "agents")
+        env = {k: v for k, v in os.environ.items() if not k.endswith("_API_KEY")}
+        env.update({"HOME": home, **env_keys})
+        proc = subprocess.run([sys.executable, os.path.join(SCRIPTS, "install.py"), "--install",
+                               "--codex-root", os.path.join(home, "c"), "--claude-root", os.path.join(home, "d"),
+                               "--claude-agents-root", os.path.join(home, "a"), "--opencode-root", root, *extra],
+                              capture_output=True, text=True, env=env)
+        report = json.loads(proc.stdout)
+        return report, root
+
+    def test_gpt_or_claude_keeps_the_default_links(self):
+        report, root = self.run_install({"OPENAI_API_KEY": "x", "DEEPSEEK_API_KEY": "y"})
+        self.assertEqual(report["opencode"]["profile"], "default")
+        self.assertTrue(os.path.islink(os.path.join(root, "pr-shepherd-sol.md")))
+
+    def test_deepseek_replaces_models_when_no_gpt_or_claude(self):
+        report, root = self.run_install({"DEEPSEEK_API_KEY": "y"}, '{"provider": {"zhipuai": {}}}')
+        self.assertEqual(report["opencode"]["profile"], "deepseek")
+        opus = open(os.path.join(root, "pr-shepherd-opus.md")).read()
+        sol = open(os.path.join(root, "pr-shepherd-sol.md")).read()
+        self.assertIn("model: deepseek/deepseek-reasoner", opus)
+        self.assertIn("model: deepseek/deepseek-chat", sol)
+        self.assertNotIn("reasoningEffort", sol)
+        self.assertIn("pr-shepherd-managed-copy", sol)
+
+    def test_glm_only_when_no_gpt_claude_or_deepseek(self):
+        report, root = self.run_install({}, '{"provider": {"zhipuai": {"options": {}}}}')
+        self.assertEqual(report["opencode"]["profile"], "glm")
+        self.assertIn("model: zhipuai/glm-4.6", open(os.path.join(root, "pr-shepherd-sol.md")).read())
+        # A later run with GPT connected replaces nothing it does not own and reports the copies.
+        again, _ = self.run_install({}, '{"provider": {"zhipuai": {}}}')
+        self.assertTrue(all(t["status"] == "copied" for t in again["targets"] if "pr-shepherd-" in t["path"] and t["path"].endswith(".md") and "/agents/" in t["path"]))
+
+
 class CheckMatrixTest(unittest.TestCase):
     def test_shipped_matrix_matches_definitions_and_manifest(self):
         manifest = os.path.join(ROOT, ".claude-plugin", "plugin.json")
