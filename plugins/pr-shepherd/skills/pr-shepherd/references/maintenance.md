@@ -23,7 +23,7 @@ To work on the package itself, link a clone instead of installing the plugin
 ```sh
 python3 scripts/install.py --dry-run    # plan
 python3 scripts/install.py --install    # link
-python3 scripts/install.py --check      # 0 linked, 1 missing, 2 collision/invalid
+python3 scripts/install.py --check      # 0 up to date, 1 missing/outdated/stale, 2 collision/invalid
 ```
 
 Defaults: `~/.agents/skills/pr-shepherd` for Codex (pass `--codex-root
@@ -52,8 +52,8 @@ another model or effort needs its own definition: add the file, reference it in
 ## Changing models and "last verified"
 
 1. Check the new model and effort against current official docs.
-2. Run a bounded real probe: one native review call per definition (Claude) or
-   per model/effort (Codex). Keep the observed response model, tokens and result;
+2. Run a bounded real probe: one native review call per definition (Claude),
+   per model/effort (Codex), per agent (OpenCode) or per tool (dsh). Keep the observed response model, tokens and result;
    self-reports and init metadata are not evidence.
 3. Update the matrix table and its `Last verified: YYYY-MM-DD — <what ran>` line.
    Say which combinations ran and which are policy only.
@@ -63,8 +63,9 @@ another model or effort needs its own definition: add the file, reference it in
    start a fresh session before relying on new discovery.
 
 If a pinned model is unavailable, keep the requested version and report the
-failure; never substitute an alias or Haiku silently. Codex and Claude matrices
-are separate; changing one does not authorize changing the other.
+failure; never substitute an alias or Haiku silently. The Claude, Codex,
+OpenCode and dsh matrices are separate; changing one does not authorize
+changing another.
 
 ## Evals
 

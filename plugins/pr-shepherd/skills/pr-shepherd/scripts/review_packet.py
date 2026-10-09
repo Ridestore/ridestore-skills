@@ -118,6 +118,12 @@ def load_roles():
     return roles
 
 
+def review_label(role, sensitive=False):
+    """Short description for the agent call, naming what it checks ("Bugs" -> "Bugs review")."""
+    label = role if role.lower().endswith("review") else f"{role} review"
+    return label + " (sensitive)" if sensitive else label
+
+
 def load_matrix(runtime):
     path = os.path.join(SKILL_DIR, "references", f"{runtime}-models.md")
     matrix = {}
@@ -246,7 +252,8 @@ def main(argv=None):
         "repo": repo, "repo_name": os.path.basename(repo), "base_ref": args.base, "tip": tip,
         "merge_base": merge_base, "head": head, "tree": tree, "previous_head": args.previous_head,
         "files": files, "instructions": instructions, "runtime": args.runtime,
-        "roles": {r: {**roles_info[r], **matrix.get(tier if r == "remy" else r, {})} for r in wanted},
+        "roles": {r: {**roles_info[r], "label": review_label(roles_info[r]["role"], r == "remy" and tier == "remy+"),
+                      **matrix.get(tier if r == "remy" else r, {})} for r in wanted},
         "security": {"tier": tier, "signals": signals},
         "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
     }

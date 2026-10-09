@@ -84,6 +84,7 @@ class ReviewPacketTest(unittest.TestCase):
         self.assertEqual([roles["maya"][k] for k in ("model", "effort", "definition")],
                          ["deepseek-flash", "high", "pr_shepherd_flash"])
         self.assertEqual(roles["nora"]["definition"], "pr_shepherd_flash_max")
+        self.assertEqual((roles["maya"]["label"], roles["nora"]["label"]), ("Bugs review", "Types review"))
 
     def test_remy_model_follows_security_signals(self):
         _, routine = review_packet.security_tier("+++ b/src/form.py\n+value = int(request.args['n'])\n")
@@ -119,6 +120,7 @@ class ReviewPacketTest(unittest.TestCase):
         self.assertEqual(manifest["security"]["tier"], "remy+")
         self.assertEqual(manifest["roles"]["remy"]["model"], "gpt-6.1-sol")
         self.assertEqual(manifest["roles"]["remy"]["effort"], "xhigh")
+        self.assertEqual(manifest["roles"]["remy"]["label"], "Security review (sensitive)")
         self.assertIn("Remy uses the `remy+` row: authentication", open(os.path.join(out, "self-check.md")).read())
 
     def test_stale_terms_fail_the_self_check(self):
@@ -247,17 +249,68 @@ class DshInstallTest(unittest.TestCase):
         self.assertTrue(text.endswith("# <<< pr-shepherd <<<\n- id: hmr\n"))
         self.assertNotIn("- insert: []", text)
 
+    def test_end_marker_at_end_of_file_without_newline(self):
+        write(self.patch, "- id: hmr\n# >>> pr-shepherd (managed by install.py) >>>\n- insert: []\n# <<< pr-shepherd <<<")
+        self.assertEqual(self.run_install()[:2], (0, "patched"))
+        self.assertTrue(open(self.patch).read().endswith("# <<< pr-shepherd <<<\n"))
+
+    def test_keeps_crlf_and_allows_id_overrides_of_managed_rows(self):
+        write(self.patch, "- id: hmr\r\n  disabled: true\r\n")
+        self.assertEqual(self.run_install()[1], "patched")
+        with open(self.patch, newline="") as fh:
+            text = fh.read()
+        self.assertTrue(text.startswith("- id: hmr\r\n  disabled: true\r\n# >>> pr-shepherd"))
+        override = text + "- id: pr-shepherd-flash\r\n  config:\r\n    toolName: pr_shepherd_flash\r\n"
+        with open(self.patch, "w", newline="") as fh:
+            fh.write(override)
+        self.assertEqual(self.run_install()[:2], (0, "patched"))
+
     def test_refuses_flow_lists_and_foreign_pr_shepherd_rows(self):
-        for content in ("[]\n", "- insert:\n    - id: pr-shepherd-flash\n"):
+        for content in ("[]\n", "  - id: hmr\n    disabled: true\n", "- insert:\n    - id: pr-shepherd-flash\n",
+                        "- insert:\n    - name: x\n      id: 'pr-shepherd-flash'\n",
+                        "- insert:\n    - id: mine\n      config: {toolName: pr_shepherd_flash}\n"):
             write(self.patch, content)
             self.assertEqual(self.run_install()[:2], (2, "collision"))
             self.assertEqual(open(self.patch).read(), content)
+
+
+class RetiredOpenCodeAgentTest(unittest.TestCase):
+    def test_removes_only_our_retired_astra_agent(self):
+        home = tempfile.mkdtemp()
+        root = os.path.join(home, "oc")
+        os.makedirs(root)
+        source_agents = os.path.join(os.path.dirname(SCRIPTS), "agents", "opencode")
+        os.symlink(os.path.join(source_agents, "pr-shepherd-astra.md"), os.path.join(root, "pr-shepherd-astra.md"))
+        args = [sys.executable, os.path.join(SCRIPTS, "install.py"), "--codex-root", os.path.join(home, "c"),
+                "--claude-root", os.path.join(home, "d"), "--claude-agents-root", os.path.join(home, "a"),
+                "--opencode-root", root, "--opencode-profile", "default"]
+        self.assertEqual(subprocess.run(args + ["--check"], capture_output=True).returncode, 1)
+        subprocess.run(args + ["--install"], capture_output=True, check=True)
+        self.assertFalse(os.path.lexists(os.path.join(root, "pr-shepherd-astra.md")))
+        write(os.path.join(root, "pr-shepherd-astra.md"), "my own agent\n")
+        self.assertEqual(subprocess.run(args + ["--check"], capture_output=True).returncode, 0)
+        self.assertTrue(os.path.isfile(os.path.join(root, "pr-shepherd-astra.md")))
 
 
 class CheckMatrixTest(unittest.TestCase):
     def test_shipped_matrix_matches_definitions_and_manifest(self):
         manifest = os.path.join(ROOT, ".claude-plugin", "plugin.json")
         self.assertEqual(check_matrix.main(["--plugin-manifest", manifest, "--today", "2026-10-09"]), 0)
+
+    def test_dsh_tools_must_match_matrix_and_stay_read_only(self):
+        skill = os.path.join(ROOT, "skills", "pr-shepherd")
+        mutations = {"reasoningEffort: max": "reasoningEffort: high", "maxDepth: 1": "maxDepth: 2",
+                     "allow: [read, grep, glob]": "allow: [read, grep, glob, bash]",
+                     "provider: deepseek-official": "provider: openai"}
+        for old, new in mutations.items():
+            with tempfile.TemporaryDirectory() as tmp:
+                copy = os.path.join(tmp, "pr-shepherd")
+                subprocess.run(["cp", "-R", skill, copy], check=True)
+                patch = os.path.join(copy, "agents", "dsh", "cordis.patch.yml")
+                text = open(patch).read()
+                self.assertIn(old, text)
+                write(patch, text.replace(old, new))
+                self.assertEqual(check_matrix.main(["--skill-dir", copy, "--today", "2026-10-09"]), 1, new)
 
     def test_old_verification_fails_only_in_strict_mode(self):
         self.assertEqual(check_matrix.main(["--today", "2027-06-01"]), 0)
