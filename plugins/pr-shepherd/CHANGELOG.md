@@ -22,9 +22,10 @@
   the fix diff read attributes from the merge base (`--attr-source`, git
   2.40+), so a `.gitattributes` added by the PR cannot hide its own lines. An
   added `.gitattributes` line that can hide or collapse source (`-diff`,
-  `binary`, `linguist-generated`, a macro), a file git still shows as binary
-  that is not an asset or output hidden by design, and a committed key or
-  certificate file route Remy+.
+  `binary`, `filter=` such as LFS, `linguist-generated`, a macro) on a pattern
+  that is not an asset or lockfile, a file git still shows as binary that is
+  not an asset or output hidden by design (a committed `dist/` bundle counts),
+  and a committed key or certificate file, also under tests, route Remy+.
 - Repository signals (`--security-signal` and `--specialist-signal`) are
   recorded as `repo: NAME`: they add to the built-in signals and can no longer
   replace or switch one off. An invalid regex stops with the offending item.
