@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.3.1
+
+- OpenCode fallback models updated: DeepSeek Flash (`deepseek-flash`) for every
+  role and DeepSeek V4-Pro only for sensitive security (Remy+); GLM-5.3 for GLM.
+
 ## 2.3.0
 
 - OpenCode provider fallback: when neither GPT (OpenAI) nor Claude (Anthropic) is

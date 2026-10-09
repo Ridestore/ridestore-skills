@@ -191,15 +191,16 @@ class OpenCodeProfileTest(unittest.TestCase):
         self.assertEqual(report["opencode"]["profile"], "deepseek")
         opus = open(os.path.join(root, "pr-shepherd-opus.md")).read()
         sol = open(os.path.join(root, "pr-shepherd-sol.md")).read()
-        self.assertIn("model: deepseek/deepseek-reasoner", opus)
-        self.assertIn("model: deepseek/deepseek-chat", sol)
+        self.assertIn("model: deepseek/deepseek-flash", opus)
+        self.assertIn("model: deepseek/deepseek-v4-pro", open(os.path.join(root, "pr-shepherd-astra.md")).read())
+        self.assertIn("model: deepseek/deepseek-flash", sol)
         self.assertNotIn("reasoningEffort", sol)
         self.assertIn("pr-shepherd-managed-copy", sol)
 
     def test_glm_only_when_no_gpt_claude_or_deepseek(self):
         report, root = self.run_install({}, '{"provider": {"zhipuai": {"options": {}}}}')
         self.assertEqual(report["opencode"]["profile"], "glm")
-        self.assertIn("model: zhipuai/glm-4.6", open(os.path.join(root, "pr-shepherd-sol.md")).read())
+        self.assertIn("model: zhipuai/glm-5.3", open(os.path.join(root, "pr-shepherd-sol.md")).read())
         # A later run with GPT connected replaces nothing it does not own and reports the copies.
         again, _ = self.run_install({}, '{"provider": {"zhipuai": {}}}')
         self.assertTrue(all(t["status"] == "copied" for t in again["targets"] if "pr-shepherd-" in t["path"] and t["path"].endswith(".md") and "/agents/" in t["path"]))
