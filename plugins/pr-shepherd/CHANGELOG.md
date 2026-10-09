@@ -9,7 +9,8 @@
   ([routing](skills/pr-shepherd/references/roles.md#routing)). Docs, tests,
   fixtures, lockfiles, generated output, translations and release metadata are
   ignored, and a fix check routes on the changes since the reviewed head.
-  `--specialist-signal ROLE:NAME=REGEX` adds repository signals. Same for every
+  `--specialist-signal ROLE:NAME=REGEX` adds repository signals, matched
+  against changed paths and added lines. Same for every
   runtime.
 - The packet's diff reader counts hunk lengths, so a content line starting with
   `++ ` no longer hides the rest of a file from security or specialist signals;
