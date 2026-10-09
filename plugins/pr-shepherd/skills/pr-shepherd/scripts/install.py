@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Link one trusted package into Codex/Claude; refuse unmanaged collisions."""
+"""Link one trusted package into Codex/Claude (and optionally OpenCode and dsh); refuse unmanaged collisions."""
 import argparse
 import hashlib
 import json
 import os
 import re
+import shutil
 import sys
 from pathlib import Path
 
@@ -15,7 +16,8 @@ REQUIRED = ("SKILL.md", "agents/openai.yaml", "scripts/install.py",
             "references/local-review.md", "references/roles.md",
             "references/progress.md", "references/workspaces.md",
             "references/attestation.md", "references/post-pr.md",
-            "references/maintenance.md")
+            "references/maintenance.md", "references/dsh-models.md",
+            "agents/dsh/cordis.patch.yml")
 
 
 # OpenCode fallback when neither OpenAI (GPT) nor Anthropic (Claude) is connected:
@@ -54,6 +56,35 @@ def opencode_copy(agent, profile):
     return text.replace("---\n", f"---\n{MANAGED_COPY} ({profile})\n", 1)
 
 
+DSH_BEGIN = "# >>> pr-shepherd (managed by install.py) >>>"
+DSH_END = "# <<< pr-shepherd <<<"
+
+
+def dsh_patch_record(dest, fragment):
+    """Plan the managed block in dsh's home patch (a YAML block list). Text outside
+    the markers is never changed; a file we cannot append to safely is a collision."""
+    block = f"{DSH_BEGIN}\n{fragment.rstrip()}\n{DSH_END}\n"
+    current = dest.read_text() if dest.is_file() else ""
+    record = {"path": str(dest), "expected_target": "managed block from agents/dsh/cordis.patch.yml"}
+    begin, end = current.find(DSH_BEGIN + "\n"), current.find(DSH_END + "\n")
+    if dest.is_symlink() or (dest.exists() and not dest.is_file()):
+        status, new = "collision", None
+    elif begin != -1 and end > begin and current.count(DSH_BEGIN) == 1:
+        outside = current[:begin] + current[end + len(DSH_END) + 1:]
+        new = current[:begin] + block + current[end + len(DSH_END) + 1:]
+        status = "collision" if re.search(r"^\s*- id: pr-shepherd-", outside, re.M) else "patched" if new == current else "outdated"
+    elif DSH_BEGIN in current or DSH_END in current or re.search(r"^\s*- id: pr-shepherd-", current, re.M):
+        status, new = "collision", None
+    else:
+        top = [l for l in current.splitlines() if l.strip() and not l.lstrip().startswith("#") and not l[0].isspace()]
+        status = "missing" if all(l.startswith("- ") or l == "-" for l in top) else "collision"
+        new = current + ("\n" if current and not current.endswith("\n") else "") + block
+    if status == "collision":
+        record["error"] = "not a YAML block list, or pr-shepherd rows exist outside the managed block"
+    record["status"], record["_text"] = status, new
+    return record
+
+
 def validate_package(source):
     missing = [name for name in REQUIRED if not (source / name).is_file()]
     if missing:
@@ -86,6 +117,8 @@ def main():
     parser.add_argument("--opencode-root", type=Path, help="also install agents/opencode/*.md here (e.g. ~/.config/opencode/agents)")
     parser.add_argument("--opencode-profile", choices=["auto", "default", "deepseek", "glm"], default="auto",
                         help="auto: GPT/Claude connected -> default mix; else DeepSeek; else GLM")
+    parser.add_argument("--dsh-home", type=Path, help="also install for DeepSeek Harness: link the skill into "
+                        "<dsh-home>/skills and add the reviewer tools to <dsh-home>/cordis.patch.yml (e.g. ~/.dsh)")
     args = parser.parse_args()
     source = args.source.expanduser().resolve()
     validate_package(source)
@@ -116,6 +149,11 @@ def main():
             else:
                 copies.append((args.opencode_root.expanduser().absolute() / agent.name, agent, opencode_copy(agent, profile)))
     records = []
+    if args.dsh_home:
+        dsh_home = args.dsh_home.expanduser().absolute()
+        targets.append((dsh_home / "skills", "pr-shepherd", source))
+        records.append(dsh_patch_record(dsh_home / "cordis.patch.yml",
+                                        (source / "agents" / "dsh" / "cordis.patch.yml").read_text()))
     for dest, agent, text in copies:
         exists = dest.exists() or dest.is_symlink()
         ours = (dest.is_symlink() and dest.resolve() == agent) or (dest.is_file() and not dest.is_symlink() and MANAGED_COPY in dest.read_text())
@@ -137,16 +175,25 @@ def main():
         records.append(record)
     report = {"source": str(source), "version": version, "models": models,
               "opencode": {"providers": sorted(providers), "profile": profile} if args.opencode_root else None,
+              "dsh": {"home": str(args.dsh_home.expanduser().absolute()), "binary": shutil.which("dsh")} if args.dsh_home else None,
               "mode": "check" if args.check else "install" if args.install else "dry-run",
               "targets": records}
     if any(r["status"] == "collision" for r in records):
         report["error"] = "Unmanaged destination collision; nothing overwritten"
         code = 2
     elif args.check:
-        code = 1 if any(r["status"] == "missing" for r in records) else 0
+        code = 1 if any(r["status"] in ("missing", "outdated") for r in records) else 0
     else:
         code = 0
         for r in records:
+            if r["status"] == "outdated" or (r["status"] == "missing" and r.get("expected_target", "").startswith("managed block")):
+                r["action"] = "patch"
+                if args.install:
+                    dest = Path(r["path"])
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    dest.write_text(r["_text"])
+                    r["status"] = "patched"
+                continue
             if r["status"] != "missing":
                 continue
             if "_text" in r:

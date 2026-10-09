@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.4.0
+
+- DeepSeek Harness (dsh) support: `install.py --dsh-home ~/.dsh` links the skill
+  and adds two read-only reviewer tools (`pr_shepherd_flash` at high,
+  `pr_shepherd_flash_max` at max) to dsh's home patch in a managed block;
+  `review_packet.py --runtime dsh`, a dsh matrix (`references/dsh-models.md`) and
+  `check_matrix.py` checks for it. DeepSeek Flash for every role; not yet
+  verified at runtime.
+- No more GPT-6 Astra: Remy+ (sensitive security) runs GPT-6.1 Sol at xhigh in
+  Codex and OpenCode. The OpenCode agent `pr-shepherd-astra` is now
+  `pr-shepherd-sol-xhigh`; remove the old file from your OpenCode agents folder.
+- OpenCode DeepSeek fallback uses `deepseek-flash` for every role (no V4-Pro).
+
 ## 2.3.1
 
 - OpenCode fallback models updated: DeepSeek Flash (`deepseek-flash`) for every

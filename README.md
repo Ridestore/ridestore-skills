@@ -3,15 +3,16 @@
 Agent workflow plugins for **Claude Code**, **Codex** and **OpenCode**, published by
 Ridestore and usable in any GitHub repository. The repository is a plugin
 marketplace for Claude Code and Codex and a remote skill source for OpenCode.
-Every plugin ships the same skills to all three agents. Company- or team-specific
+Every plugin ships the same skills to all three agents; `pr-shepherd` also
+installs into DeepSeek Harness (`dsh`) from a clone. Company- or team-specific
 rules stay out of the skills; you add them in your repository's `AGENTS.md` /
 `CLAUDE.md`.
 
 ## Plugins
 
-| Plugin | Claude Code | Codex | OpenCode | What it does |
-| --- | :-: | :-: | :-: | --- |
-| [pr-shepherd](plugins/pr-shepherd) | ✓ | ✓ | ✓ | Implement a task and open a normal PR only after independent read-only reviewer agents (bugs, architecture, types, security, …) have reviewed it on pinned models before the first push; then follow up on review threads and CI. Optional attestation label for your review automation. [Details →](plugins/pr-shepherd) |
+| Plugin | Claude Code | Codex | OpenCode | DeepSeek Harness | What it does |
+| --- | :-: | :-: | :-: | :-: | --- |
+| [pr-shepherd](plugins/pr-shepherd) | ✓ | ✓ | ✓ | ✓ | Implement a task and open a normal PR only after independent read-only reviewer agents (bugs, architecture, types, security, …) have reviewed it on pinned models before the first push; then follow up on review threads and CI. Optional attestation label for your review automation. [Details →](plugins/pr-shepherd) |
 
 ## Install
 
@@ -56,10 +57,26 @@ step from a clone, because the skills index cannot register agents; see the
 plugin's README. If you prefer a local clone, list its path instead:
 `"skills": ["~/Projects/ridestore-skills/plugins/<plugin>/skills"]`.
 
+### DeepSeek Harness (dsh)
+
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) finds skills
+in `~/.dsh/skills` and `~/.agents/skills` and takes configuration from
+`~/.dsh/cordis.patch.yml`; it has no marketplace for this repository. Install
+from a clone; `pr-shepherd`'s installer links the skill and adds its DeepSeek
+reviewer tools:
+
+```sh
+python3 plugins/pr-shepherd/skills/pr-shepherd/scripts/install.py --install --dsh-home ~/.dsh
+```
+
+Update with `git pull`; re-run the installer when the plugin's changelog says
+the reviewer tools changed. See [pr-shepherd's README](plugins/pr-shepherd#deepseek-harness-dsh).
+
 ### Only the skill, without a plugin
 
 Every skill is a plain folder at `plugins/<plugin>/skills/<skill>`. You can also
-link or copy it into `~/.claude/skills/`, `~/.codex/skills/` or `~/.config/opencode/skills/`.
+link or copy it into `~/.claude/skills/`, `~/.codex/skills/`, `~/.config/opencode/skills/`
+or `~/.dsh/skills/`.
 Don't do both for the same skill in one agent, or it is loaded twice. `pr-shepherd`
 has its own link installer that also registers its Claude reviewer agents; see its README.
 

@@ -76,6 +76,15 @@ class ReviewPacketTest(unittest.TestCase):
         self.assertTrue(roles["felix"]["model"].startswith("openai/"))
         self.assertEqual(roles["felix"]["definition"], "pr-shepherd-sol")
 
+    def test_dsh_runtime_uses_its_deepseek_tools(self):
+        out = os.path.join(self.tmp.name, "dsh")
+        self.assertEqual(review_packet.main(["--repo", self.repo, "--base", "main", "--roles", "maya,nora",
+                                             "--runtime", "dsh", "--out", out]), 0)
+        roles = json.load(open(os.path.join(out, "manifest.json")))["roles"]
+        self.assertEqual([roles["maya"][k] for k in ("model", "effort", "definition")],
+                         ["deepseek-flash", "high", "pr_shepherd_flash"])
+        self.assertEqual(roles["nora"]["definition"], "pr_shepherd_flash_max")
+
     def test_remy_model_follows_security_signals(self):
         _, routine = review_packet.security_tier("+++ b/src/form.py\n+value = int(request.args['n'])\n")
         self.assertEqual(review_packet.security_tier("+++ b/src/form.py\n+value = clean(x)\n")[0], "remy")
@@ -205,6 +214,44 @@ class OpenCodeProfileTest(unittest.TestCase):
         # A later run with GPT connected replaces nothing it does not own and reports the copies.
         again, _ = self.run_install({}, '{"provider": {"zhipuai": {}}}')
         self.assertTrue(all(t["status"] == "copied" for t in again["targets"] if "pr-shepherd-" in t["path"] and t["path"].endswith(".md") and "/agents/" in t["path"]))
+
+
+class DshInstallTest(unittest.TestCase):
+    def setUp(self):
+        self.home = tempfile.mkdtemp()
+        self.patch = os.path.join(self.home, "dsh", "cordis.patch.yml")
+
+    def run_install(self, mode="--install"):
+        h = self.home
+        proc = subprocess.run([sys.executable, os.path.join(SCRIPTS, "install.py"), mode,
+                               "--codex-root", os.path.join(h, "c"), "--claude-root", os.path.join(h, "d"),
+                               "--claude-agents-root", os.path.join(h, "a"), "--dsh-home", os.path.join(h, "dsh")],
+                              capture_output=True, text=True)
+        status = {t["path"]: t["status"] for t in json.loads(proc.stdout)["targets"]}
+        return proc.returncode, status.get(self.patch), status.get(os.path.join(h, "dsh", "skills", "pr-shepherd"))
+
+    def test_appends_block_keeps_user_rows_and_is_idempotent(self):
+        write(self.patch, "- id: hmr\n  disabled: true\n")
+        self.assertEqual(self.run_install(), (0, "patched", "linked"))
+        text = open(self.patch).read()
+        self.assertTrue(text.startswith("- id: hmr\n  disabled: true\n# >>> pr-shepherd"))
+        self.assertIn("toolName: pr_shepherd_flash_max", text)
+        self.assertEqual(self.run_install(), (0, "patched", "linked"))
+        self.assertEqual(open(self.patch).read(), text)
+
+    def test_outdated_block_is_replaced_in_place(self):
+        write(self.patch, "# >>> pr-shepherd (managed by install.py) >>>\n- insert: []\n# <<< pr-shepherd <<<\n- id: hmr\n")
+        self.assertEqual(self.run_install("--check")[:2], (1, "outdated"))
+        self.assertEqual(self.run_install()[1], "patched")
+        text = open(self.patch).read()
+        self.assertTrue(text.endswith("# <<< pr-shepherd <<<\n- id: hmr\n"))
+        self.assertNotIn("- insert: []", text)
+
+    def test_refuses_flow_lists_and_foreign_pr_shepherd_rows(self):
+        for content in ("[]\n", "- insert:\n    - id: pr-shepherd-flash\n"):
+            write(self.patch, content)
+            self.assertEqual(self.run_install()[:2], (2, "collision"))
+            self.assertEqual(open(self.patch).read(), content)
 
 
 class CheckMatrixTest(unittest.TestCase):
