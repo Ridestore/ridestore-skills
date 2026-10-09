@@ -83,7 +83,7 @@ class ReviewPacketTest(unittest.TestCase):
         roles = json.load(open(os.path.join(out, "manifest.json")))["roles"]
         self.assertEqual([roles["maya"][k] for k in ("model", "effort", "definition")],
                          ["deepseek-flash", "high", "pr_shepherd_flash"])
-        self.assertEqual(roles["nora"]["definition"], "pr_shepherd_flash_max")
+        self.assertEqual(roles["nora"]["definition"], "pr_shepherd_flash")
         self.assertEqual((roles["maya"]["label"], roles["nora"]["label"]), ("Bugs review", "Types review"))
 
     def test_remy_model_follows_security_signals(self):
@@ -119,7 +119,7 @@ class ReviewPacketTest(unittest.TestCase):
         manifest = json.load(open(os.path.join(out, "manifest.json")))
         self.assertEqual(manifest["security"]["tier"], "remy+")
         self.assertEqual(manifest["roles"]["remy"]["model"], "gpt-6.1-sol")
-        self.assertEqual(manifest["roles"]["remy"]["effort"], "xhigh")
+        self.assertEqual(manifest["roles"]["remy"]["effort"], "high")
         self.assertEqual(manifest["roles"]["remy"]["label"], "Security review (sensitive)")
         self.assertIn("Remy uses the `remy+` row: authentication", open(os.path.join(out, "self-check.md")).read())
 
@@ -204,7 +204,7 @@ class OpenCodeProfileTest(unittest.TestCase):
         opus = open(os.path.join(root, "pr-shepherd-opus.md")).read()
         sol = open(os.path.join(root, "pr-shepherd-sol.md")).read()
         self.assertIn("model: deepseek/deepseek-flash", opus)
-        self.assertIn("model: deepseek/deepseek-flash", open(os.path.join(root, "pr-shepherd-sol-xhigh.md")).read())
+        self.assertIn("model: deepseek/deepseek-flash", open(os.path.join(root, "pr-shepherd-sol-high.md")).read())
         self.assertIn("model: deepseek/deepseek-flash", sol)
         self.assertNotIn("reasoningEffort", sol)
         self.assertIn("pr-shepherd-managed-copy", sol)
@@ -275,6 +275,18 @@ class DshInstallTest(unittest.TestCase):
 
 
 class RetiredOpenCodeAgentTest(unittest.TestCase):
+    def test_removes_retired_claude_xhigh_links(self):
+        home = tempfile.mkdtemp()
+        agents = os.path.join(home, "a")
+        os.makedirs(agents)
+        dest = os.path.join(agents, "opus-reviewer-xhigh.md")
+        os.symlink(os.path.join(os.path.dirname(SCRIPTS), "agents", "opus-reviewer-xhigh.md"), dest)
+        subprocess.run([sys.executable, os.path.join(SCRIPTS, "install.py"), "--install", "--codex-root",
+                        os.path.join(home, "c"), "--claude-root", os.path.join(home, "d"), "--claude-agents-root", agents],
+                       capture_output=True, check=True)
+        self.assertFalse(os.path.lexists(dest))
+        self.assertTrue(os.path.islink(os.path.join(agents, "sonnet-reviewer-medium.md")))
+
     def test_removes_only_our_retired_astra_agent(self):
         home = tempfile.mkdtemp()
         root = os.path.join(home, "oc")
@@ -299,7 +311,7 @@ class CheckMatrixTest(unittest.TestCase):
 
     def test_dsh_tools_must_match_matrix_and_stay_read_only(self):
         skill = os.path.join(ROOT, "skills", "pr-shepherd")
-        mutations = {"reasoningEffort: max": "reasoningEffort: high", "maxDepth: 1": "maxDepth: 2",
+        mutations = {"reasoningEffort: max": "reasoningEffort: low", "maxDepth: 1": "maxDepth: 2",
                      "allow: [read, grep, glob]": "allow: [read, grep, glob, bash]",
                      "provider: deepseek-official": "provider: openai",
                      "reasoningEffort: high": "reasoningEffort: medium",

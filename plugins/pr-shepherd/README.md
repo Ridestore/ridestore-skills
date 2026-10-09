@@ -74,9 +74,9 @@ It never merges or deploys unless you say so separately.
 
 | Runtime | How reviewers run |
 | --- | --- |
-| Claude Code | Five native subagents shipped with the plugin, limited to Read/Grep/Glob: `opus-reviewer-medium` (Opus at medium) for Maya and Theo, `opus-reviewer` and `sonnet-reviewer` (`claude-opus-5-5` / `claude-sonnet-5-5` at high) for most other roles, and `opus-reviewer-xhigh` / `sonnet-reviewer-xhigh` at xhigh for types, code quality, language and verification, matching the Codex matrix. As a plugin they appear as `pr-shepherd:opus-reviewer` and so on. |
-| Codex | Native Codex subagents: mostly `gpt-6.1-sol` at high effort (Maya and Theo at medium), `gpt-6-luna` at xhigh for types, code quality, language and verification, Sol at xhigh for sensitive security changes (auth, permissions, trust boundaries, secrets, infra, cross-service), chosen from signals in the diff; routine security checks run on Sol at high. |
-| OpenCode | Five subagents in `agents/opencode/` with mixed providers: Maya, Zoe and Cleo on Claude Opus 5.5, everything else on the Codex models above, so Felix's independent pass runs on a different model family than Maya's. Without GPT or Claude connected, the installer switches the agents to DeepSeek Flash or else GLM-5.3 for every role. Not yet verified at runtime. Parallel reviewers need `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true`. |
+| Claude Code | Four native subagents shipped with the plugin, limited to Read/Grep/Glob: `opus-reviewer-medium` and `sonnet-reviewer-medium` (`claude-opus-5-5` / `claude-sonnet-5-5` at medium) for most roles, and `opus-reviewer` / `sonnet-reviewer` at high for types, code quality, language, verification and sensitive security, matching the Codex matrix. As a plugin they appear as `pr-shepherd:opus-reviewer` and so on. |
+| Codex | Native Codex subagents: mostly `gpt-6.1-sol` at medium effort, `gpt-6-luna` at high for types, code quality, language and verification, Sol at high for sensitive security changes (auth, permissions, trust boundaries, secrets, infra, cross-service), chosen from signals in the diff; routine security checks run on Sol at medium. Efforts are one step lower than before 2.4.0 to keep each reviewer to a few minutes. |
+| OpenCode | Four subagents in `agents/opencode/` with mixed providers: Maya, Zoe and Cleo on Claude Opus 5.5, everything else on the Codex models above, so Felix's independent pass runs on a different model family than Maya's. Without GPT or Claude connected, the installer switches the agents to DeepSeek Flash or else GLM-5.3 for every role. Not yet verified at runtime. Parallel reviewers need `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true`. |
 | DeepSeek Harness (`dsh`) | DeepSeek only: two read-only delegation tools added to dsh's home patch, both on `deepseek-flash` — `pr_shepherd_flash` (effort high) for most roles and `pr_shepherd_flash_max` (effort max) for types, code quality, language, verification and sensitive security. One model family, so Felix's pass is not cross-family. Not yet verified at runtime. See [DeepSeek Harness](#deepseek-harness-dsh). |
 
 Full role-to-model tables:
@@ -172,11 +172,10 @@ python3 plugins/pr-shepherd/skills/pr-shepherd/scripts/install.py --install --ds
 
   | Tool | Model | Effort | Roles |
   | --- | --- | --- | --- |
-  | `pr_shepherd_flash` | `deepseek-flash` (V4.1 Flash) | high | Finn, Maya, Theo, Jasper, Felix, Remy, Ruby, Zoe, Cleo, Otis, Milo, Luna |
-  | `pr_shepherd_flash_max` | `deepseek-flash` | max | Nora, Oscar, Iris, Vera, Remy+ |
+  | `pr_shepherd_flash` | `deepseek-flash` (V4.1 Flash) | high | every role except Remy+ |
+  | `pr_shepherd_flash_max` | `deepseek-flash` | max | Remy+ (sensitive security) |
 
-  DeepSeek's efforts are `off`, `low`, `high` and `max`. Roles at medium or high
-  on the other runtimes use `high`; roles at xhigh use `max`.
+  DeepSeek's efforts are `off`, `low`, `high` and `max` (no medium).
 - **Read-only, with native tool presentation only:** both tools allow only
   `read`, `grep` and `glob`, cap delegation depth at 1 (reviewers can't start
   agents), and inherit dsh's `never` approval policy for children. In PTC
@@ -205,8 +204,8 @@ a real review. Run one and update the "Last verified" line in
 skills/pr-shepherd/
   SKILL.md                    the workflow (version in metadata)
   agents/openai.yaml          Codex skill metadata
-  agents/*-reviewer*.md       the five Claude reviewer definitions (medium, high and xhigh)
-  agents/opencode/*.md        the five OpenCode reviewer agents (mixed providers)
+  agents/*-reviewer*.md       the four Claude reviewer definitions (medium and high)
+  agents/opencode/*.md        the four OpenCode reviewer agents (mixed providers)
   agents/dsh/cordis.patch.yml the two DeepSeek Harness reviewer tools (DeepSeek Flash)
   references/
     local-review.md           freezing the snapshot, review packet, fix loop, pass gate

@@ -21,8 +21,7 @@
   "agents": [
     "./skills/pr-shepherd/agents/opus-reviewer.md",
     "./skills/pr-shepherd/agents/opus-reviewer-medium.md",
-    "./skills/pr-shepherd/agents/opus-reviewer-xhigh.md",
     "./skills/pr-shepherd/agents/sonnet-reviewer.md",
-    "./skills/pr-shepherd/agents/sonnet-reviewer-xhigh.md"
+    "./skills/pr-shepherd/agents/sonnet-reviewer-medium.md"
   ]
 }

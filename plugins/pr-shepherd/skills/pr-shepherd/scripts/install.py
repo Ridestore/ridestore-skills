@@ -25,8 +25,9 @@ REQUIRED = ("SKILL.md", "agents/openai.yaml", "scripts/install.py",
 # DeepSeek first, then GLM; one model for every role.
 OPENCODE_PROFILES = {"deepseek": "deepseek/deepseek-flash", "glm": "zhipuai/glm-5.3"}
 MANAGED_COPY = "# pr-shepherd-managed-copy"
-# OpenCode agents removed from the package; the installer deletes its own leftovers.
-RETIRED_OPENCODE_AGENTS = ("pr-shepherd-astra.md",)
+# Files removed from the package; the installer deletes its own leftovers.
+RETIRED_OPENCODE_AGENTS = ("pr-shepherd-astra.md", "pr-shepherd-sol-medium.md", "pr-shepherd-luna-xhigh.md")
+RETIRED_CLAUDE_AGENTS = ("opus-reviewer-xhigh.md", "sonnet-reviewer-xhigh.md")
 PROVIDER_ENV = {"openai": ["OPENAI_API_KEY"], "anthropic": ["ANTHROPIC_API_KEY"],
                 "deepseek": ["DEEPSEEK_API_KEY"], "glm": ["ZHIPU_API_KEY", "ZHIPUAI_API_KEY", "ZAI_API_KEY", "GLM_API_KEY"]}
 PROVIDER_IDS = {"openai": r'"openai"', "anthropic": r'"anthropic"', "deepseek": r'"deepseek"',
@@ -212,10 +213,12 @@ def main():
         targets.append((dsh_home / "skills", "pr-shepherd", source))
         records.append(dsh_patch_record(dsh_home / "cordis.patch.yml",
                                         (source / "agents" / "dsh" / "cordis.patch.yml").read_text()))
+    retired = [(args.claude_agents_root, source / "agents", RETIRED_CLAUDE_AGENTS)]
     if args.opencode_root:
-        agents_dir = source / "agents" / "opencode"
-        for name in RETIRED_OPENCODE_AGENTS:
-            dest = args.opencode_root.expanduser().absolute() / name
+        retired.append((args.opencode_root, source / "agents" / "opencode", RETIRED_OPENCODE_AGENTS))
+    for root, agents_dir, names in retired:
+        for name in names:
+            dest = root.expanduser().absolute() / name
             link = dest.is_symlink() and Path(os.path.join(dest.parent, os.readlink(dest))).parent.resolve() == agents_dir
             copy = dest.is_file() and not dest.is_symlink() and MANAGED_COPY in dest.read_text()
             if link or copy:

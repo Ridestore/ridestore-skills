@@ -8,10 +8,22 @@
   `review_packet.py --runtime dsh`, a dsh matrix (`references/dsh-models.md`) and
   `check_matrix.py` checks for it. DeepSeek Flash for every role; not yet
   verified at runtime.
-- No more GPT-6 Astra: Remy+ (sensitive security) runs GPT-6.1 Sol at xhigh in
-  Codex and OpenCode. The OpenCode agent `pr-shepherd-astra` is now
-  `pr-shepherd-sol-xhigh`; remove the old file from your OpenCode agents folder.
+- No more GPT-6 Astra: Remy+ (sensitive security) runs GPT-6.1 Sol at high in
+  Codex and OpenCode, one step above routine Remy. The OpenCode agent
+  `pr-shepherd-astra` is replaced by `pr-shepherd-sol-high`.
 - OpenCode DeepSeek fallback uses `deepseek-flash` for every role (no V4-Pro).
+- Faster reviews: every role runs one effort step lower (Deep-review roles at
+  high/xhigh took 6–8 minutes each). Claude: medium for most roles via the new
+  `sonnet-reviewer-medium` and `opus-reviewer-medium`, high for types, code
+  quality, language, verification and Remy+; the xhigh definitions are removed.
+  Codex/OpenCode: Sol at medium, Luna at high, Remy+ on Sol at high (OpenCode
+  agents `pr-shepherd-sol` now medium, `pr-shepherd-luna-high`,
+  `pr-shepherd-sol-high`). dsh: every role at high, Remy+ at max.
+- The installer removes its own retired files (old xhigh Claude links,
+  `pr-shepherd-astra`, `pr-shepherd-sol-medium`, `pr-shepherd-luna-xhigh`) and
+  leaves anything it did not create.
+- `review_packet.py` writes a per-role `label` ("Security review"); name
+  reviewer calls by what they check.
 
 ## 2.3.1
 
