@@ -1,6 +1,6 @@
 # OpenCode role/model matrix
 
-Matrix revision: 2026-10-09 (skill 2.4.0), speed profile, mixed providers.
+Matrix revision: 2026-10-09 (skill 2.4.2), speed profile, mixed providers.
 Last verified: not yet — no OpenCode review has run on these definitions. Model
 IDs assume the `anthropic` and `openai` providers are configured; run one review
 and record what ran (see [maintenance](maintenance.md)). Check with
@@ -14,20 +14,20 @@ differ. Codex-side roles keep the Codex matrix's models and efforts.
 | Role | Pinned model ID | Effort | OpenCode agent |
 | --- | --- | --- | --- |
 | Coordinator | Current session model | Inherit | Current session |
-| Finn — guidelines | `openai/gpt-6.1-sol` | medium | pr-shepherd-sol |
+| Finn — guidelines | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |
 | Maya — bugs / incremental fix check | `anthropic/claude-opus-5-5` | provider default | pr-shepherd-opus |
-| Theo — architecture | `openai/gpt-6.1-sol` | medium | pr-shepherd-sol |
+| Theo — architecture | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |
 | Nora — types | `openai/gpt-6-luna` | high | pr-shepherd-luna-high |
-| Jasper — comments and intent | `openai/gpt-6.1-sol` | medium | pr-shepherd-sol |
-| Felix — independent reviewer | `openai/gpt-6.1-sol` | medium | pr-shepherd-sol |
-| Remy — security, routine | `openai/gpt-6.1-sol` | medium | pr-shepherd-sol |
+| Jasper — comments and intent | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |
+| Felix — independent reviewer | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |
+| Remy — security, routine | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |
 | Remy+ — security: auth, permissions, trust boundaries, secrets, infra, cross-service | `openai/gpt-6.1-sol` | high | pr-shepherd-sol-high |
-| Ruby — performance | `openai/gpt-6.1-sol` | medium | pr-shepherd-sol |
+| Ruby — performance | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |
 | Oscar — code quality | `openai/gpt-6-luna` | high | pr-shepherd-luna-high |
 | Iris — language | `openai/gpt-6-luna` | high | pr-shepherd-luna-high |
 | Zoe / Cleo — reflection and debate | `anthropic/claude-opus-5-5` | provider default | pr-shepherd-opus |
 | Vera — verification | `openai/gpt-6-luna` | high | pr-shepherd-luna-high |
-| Otis / Milo / Luna — fact check, confidence, reachability | `openai/gpt-6.1-sol` | medium | pr-shepherd-sol |
+| Otis / Milo / Luna — fact check, confidence, reachability | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |
 | Ada / Eli / Sofia / Hugo / Max — optional companion duties | Coordinator | Inherit | Not counted as review |
 
 "Provider default" means the agent file sets no effort: OpenCode passes

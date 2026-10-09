@@ -1,11 +1,12 @@
 # Codex role/model matrix
 
-Matrix revision: 2026-10-09 (skill 2.4.0), speed profile: Sol at medium for
-most roles, Luna at high (it never runs below high) for types, code quality,
-language and verification, and Sol at high only for sensitive security reviews
-(Remy+, see [roles](roles.md)), one step above routine Remy. Efforts are one
-step lower than in 2.3 because high/xhigh reviewers took 6–8 minutes per role
-in a Claude Deep review (2026-10-09); Codex timings are not measured.
+Matrix revision: 2026-10-09 (skill 2.4.2), cost profile: GPT-6.1 Sol only where
+it matters most, bugs (Maya, medium) and sensitive security (Remy+, high, one step
+above routine Remy; see [roles](roles.md)). Every other role runs GPT-6 Luna, at
+xhigh for the general roles and at high (it never runs below high) for types, code
+quality, language and verification. Sol is the expensive model; Luna at xhigh is
+what a production reviewer's simplified cost mode uses for every role. Felix on
+Luna also gives the independent pass a different model than Maya's.
 This skill does not use `gpt-6-astra`.
 Last verified: 2026-10-07 — GPT-6.1 Sol/high native review calls ran on Codex;
 the other model/effort combinations are policy, not observed runs. Check with
@@ -17,20 +18,20 @@ takes precedence. Do not change the coordinator's model or reasoning setting.
 | Role | Default model | Effort |
 | --- | --- | --- |
 | Coordinator | Current parent Codex model; recommended `gpt-6.1-sol` for a newly user-configured session | Inherit parent |
-| Finn — guidelines | `gpt-6.1-sol` | medium |
+| Finn — guidelines | `gpt-6-luna` | xhigh |
 | Maya — bugs / incremental fix check | `gpt-6.1-sol` | medium |
-| Theo — architecture | `gpt-6.1-sol` | medium |
+| Theo — architecture | `gpt-6-luna` | xhigh |
 | Nora — types | `gpt-6-luna` | high |
-| Jasper — comments and intent | `gpt-6.1-sol` | medium |
-| Felix — independent reviewer | `gpt-6.1-sol` | medium |
-| Remy — security, routine | `gpt-6.1-sol` | medium |
+| Jasper — comments and intent | `gpt-6-luna` | xhigh |
+| Felix — independent reviewer | `gpt-6-luna` | xhigh |
+| Remy — security, routine | `gpt-6-luna` | xhigh |
 | Remy+ — security: auth, permissions, trust boundaries, secrets, infra, cross-service | `gpt-6.1-sol` | high |
-| Ruby — performance | `gpt-6.1-sol` | medium |
+| Ruby — performance | `gpt-6-luna` | xhigh |
 | Oscar — code quality | `gpt-6-luna` | high |
 | Iris — language | `gpt-6-luna` | high |
-| Zoe / Cleo — reflection and debate | `gpt-6.1-sol` | medium |
+| Zoe / Cleo — reflection and debate | `gpt-6-luna` | xhigh |
 | Vera — verification | `gpt-6-luna` | high |
-| Otis / Milo / Luna — fact check, confidence, reachability | `gpt-6.1-sol` | medium |
+| Otis / Milo / Luna — fact check, confidence, reachability | `gpt-6-luna` | xhigh |
 | Ada / Eli / Sofia / Hugo / Max — optional companion duties | Coordinator, or `gpt-6-luna` if separately delegated | high |
 
 ## Dispatch
