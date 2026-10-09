@@ -1,8 +1,8 @@
 """Tests for the pr-shepherd helper scripts (standard library only)."""
 
 import json
-import re
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -306,6 +306,10 @@ class ReviewPacketTest(unittest.TestCase):
         self.assertNotIn(name, spec(hunk("if (course.teacher) {", "  const u = await load(course.teacher.id)", "}")).get("ruby", {}))
         self.assertNotIn(name, spec(hunk("if (checkout.step === 'payment') {", "  await createPaymentIntent(order)", "}")).get("ruby", {}))
         self.assertNotIn(name, spec(hunk("if (quota.reached) {", "  await notify(user)", "}")).get("ruby", {}))
+        for head in ("await Promise.all(rows.map((row: Row) => {", "$.each(items, function () {", "_.each(xs, (x) => {",
+                     "rows.map(function (r) {"):
+            with self.subTest(head=head):
+                self.assertIn(name, spec(hunk(head, "  return db.query(sql)", "})")).get("ruby", {}))
         self.assertIn(name, spec("+++ b/app/a.rb\n@@ -0,0 +1,3 @@\n+3.times do |i|\n+  db.execute(sql)\n+end\n").get("ruby", {}))
         self.assertNotIn(name, spec(hunk("return Promise.reject({", "  err: await describe(e),", "})")).get("ruby", {}))
         # After the loop has closed, or after a one-line .map, an await is sequential code.
@@ -435,6 +439,29 @@ class ReviewPacketTest(unittest.TestCase):
         crlf = "+++ b/src/a.py\n+REGISTRY = defaultdict(list)\r\n"
         self.assertIn("module-level collection", spec(crlf)["ruby"])
 
+    def test_binary_attribute_and_key_signals(self):
+        binary = lambda p: f"diff --git a/{p} b/{p}\nindex 1..2 100644\nBinary files a/{p} and b/{p} differ\n"
+        for path in ("src/x.ts", "web/index.html", "Dockerfile", "deploy/app.yaml", "e2e/global-setup.ts", "vendor/analytics.js",
+                     "conftest.py", "pkg/a_test.go", "dist/index.js"):
+            with self.subTest(path=path):
+                self.assertIn("hidden source content", review_packet.security_tier(binary(path))[1])
+        for path in ("web/logo.png", "fonts/a.woff2", "public/app.min.js", "src/generated/api.ts", "docs/spec.xlsx",
+                     "tests/fixtures/model.onnx", "data/sample.parquet"):
+            with self.subTest(path=path):
+                self.assertNotIn("hidden source content", review_packet.security_tier(binary(path))[1])
+        # Only attributes that can hide or collapse source count (HARMLESS_ATTRIBUTES, asset suffixes and comments do not).
+        for line in ("* text=auto eol=lf", "CHANGELOG.md merge=union", "*.psd filter=lfs diff=lfs merge=lfs -text",
+                     "*.png binary", "# binary files", "yarn.lock -diff", "*.min.js binary"):
+            with self.subTest(line=line):
+                self.assertEqual(review_packet.security_tier(f"+++ b/.gitattributes\n+{line}\n")[0], "remy")
+        self.assertIn("key or certificate file", review_packet.security_tier(
+            "diff --git a/certs/client.p12 b/certs/client.p12\nnew file mode 100644\nBinary files /dev/null and b/certs/client.p12 differ\n")[1])
+        for line in ("*.ts -diff", "src/payments/** linguist-generated=true", "src/payments/*.ts opaque", "[attr]opaque -diff",
+                     "src/payments/** filter=lfs diff=lfs merge=lfs -text", "src/checkout.a* -diff", "src/core.a/** -diff"):
+            with self.subTest(line=line):
+                self.assertEqual(review_packet.security_tier(f"+++ b/.gitattributes\n+{line}\n")[0], "remy+")
+        self.assertEqual(review_packet.security_tier("+++ b/.gitattributes\n-*.ts -diff\n")[0], "remy")
+
     @unittest.skipIf(tuple(int(x) for x in re.findall(r"\d+", subprocess.run(["git", "--version"], capture_output=True, text=True).stdout)[:2]) < (2, 40),
                      "--attr-source needs git 2.40+")
     def test_attributes_and_binary_markers_cannot_hide_source(self):
@@ -448,26 +475,6 @@ class ReviewPacketTest(unittest.TestCase):
         manifest = json.load(open(os.path.join(out, "manifest.json")))
         self.assertEqual(manifest["security"]["tier"], "remy+")
         self.assertIn("diff attributes", manifest["security"]["signals"])
-        binary = lambda p: f"diff --git a/{p} b/{p}\nindex 1..2 100644\nBinary files a/{p} and b/{p} differ\n"
-        for path in ("src/x.ts", "web/index.html", "Dockerfile", "deploy/app.yaml", "e2e/global-setup.ts", "vendor/analytics.js",
-                     "conftest.py", "pkg/a_test.go"):
-            with self.subTest(path=path):
-                self.assertIn("hidden source content", review_packet.security_tier(binary(path))[1])
-        for path in ("web/logo.png", "fonts/a.woff2", "dist/app.min.js", "src/generated/api.ts", "docs/spec.xlsx",
-                     "tests/fixtures/model.onnx", "data/sample.parquet"):
-            with self.subTest(path=path):
-                self.assertNotIn("hidden source content", review_packet.security_tier(binary(path))[1])
-        # Only attributes that change what a diff shows count.
-        for line in ("* text=auto eol=lf", "CHANGELOG.md merge=union", "*.psd filter=lfs diff=lfs merge=lfs -text",
-                     "*.png binary", "# binary files"):
-            with self.subTest(line=line):
-                self.assertEqual(review_packet.security_tier(f"+++ b/.gitattributes\n+{line}\n")[0], "remy")
-        self.assertIn("key or certificate file", review_packet.security_tier(
-            "diff --git a/certs/client.p12 b/certs/client.p12\nnew file mode 100644\nBinary files /dev/null and b/certs/client.p12 differ\n")[1])
-        for line in ("*.ts -diff", "src/payments/** linguist-generated=true", "src/payments/*.ts opaque", "[attr]opaque -diff"):
-            with self.subTest(line=line):
-                self.assertEqual(review_packet.security_tier(f"+++ b/.gitattributes\n+{line}\n")[0], "remy+")
-        self.assertEqual(review_packet.security_tier("+++ b/.gitattributes\n-*.ts -diff\n")[0], "remy")
         # A fix check reads attributes from the merge base too.
         head = subprocess.run(["git", "-C", self.repo, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
         write(os.path.join(self.repo, "src", "a.py"), "token = jwt.decode(t, verify=False)\nresp = requests.get(url)\n")

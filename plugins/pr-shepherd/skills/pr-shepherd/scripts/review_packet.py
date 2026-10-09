@@ -180,15 +180,18 @@ BINARY_ASSET = re.compile(
     r"|zip|gz|tgz|bz2|xz|zst|7z|rar|tar|jar|war|apk|aab|ipa|dmg|iso|whl|gem|nupkg|node|tflite|ds_store|wasm|mp3|mp4|m4a|wav|flac|ogg|webm|mov|avi|mkv|glb|gltf|fbx|obj|stl"
     r"|db|sqlite3?|parquet|avro|orc|feather|npy|npz|pkl|pickle|onnx|pt|h5|mo|bin|exe|dll|so|dylib|a|o|pyc|class|lockb)$", re.I)
 # Output that is hidden on purpose: lockfiles, minified bundles, maps, snapshots, generated code.
-HIDDEN_BY_DESIGN = re.compile(
-    r"(^|/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|Cargo\.lock|poetry\.lock|go\.sum)$|\.(min\.(js|css)|map|snap|lock)$"
-    r"|(^|/)(__generated__|generated|__snapshots__)/|\.generated\.|_pb2\.py$|\.pb\.go$|^((packages|apps|libs|services)/[^/]+/)?(dist|build|out)/", re.I)
+# Root dist/build/out are not on it: GitHub Actions and similar run their committed bundle.
+_LOCKFILES = r"package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?|Cargo\.lock|poetry\.lock|Pipfile\.lock|uv\.lock|composer\.lock|Gemfile\.lock|go\.sum|flake\.lock"
+_GENERATED = r"(^|/)(__generated__|generated|__snapshots__)/|\.generated\.|_pb2\.py$|\.pb\.go$"
+HIDDEN_BY_DESIGN = re.compile(r"(^|/)(" + _LOCKFILES + r")$|\.(min\.(js|css)|map|snap|lock)$|" + _GENERATED, re.I)
 GITATTRIBUTES = re.compile(r"(^|/)\.gitattributes$")
 # Attributes that never hide or collapse a file's lines; anything else (-diff,
 # binary, linguist-generated, a macro) can, now or in a later PR.
 HARMLESS_ATTRIBUTES = {"text", "eol", "crlf", "whitespace", "working-tree-encoding", "encoding", "export-ignore", "export-subst",
-                       "merge", "filter", "ident", "delta", "diff", "linguist-language", "linguist-detectable", "linguist-documentation"}
-KEY_FILE = re.compile(r"\.(p12|pfx|jks|keystore|pem|key|der|ppk)$|(^|/)id_(rsa|ed25519|ecdsa)$", re.I)  # committed keys and certificates
+                       "merge", "ident", "delta", "diff", "linguist-language", "linguist-detectable", "linguist-documentation"}
+# `filter` is not harmless: an LFS or git-crypt filter stores pointer or cipher text instead of the source.
+# Committed keys and certificates count anywhere, also under tests and fixtures: a key is never prose.
+KEY_FILE = re.compile(r"\.(p12|pfx|jks|keystore|pem|key|der|ppk|p8|crt|cer|asc|gpg|kdbx)$|(^|/)id_(rsa|dsa|ecdsa|ed25519)(?!\.pub$)[^/]*$", re.I)
 
 
 def _hides_source(path):
@@ -207,8 +210,9 @@ def _hides_lines(attribute_line):
     if not tokens or tokens[0].startswith("#"):
         return False
     pattern, attributes = tokens[0], tokens[1:]
-    if not pattern.startswith("[attr]") and BINARY_ASSET.search(pattern.rstrip("/*")):
-        return False
+    if not pattern.startswith("[attr]") and not pattern.endswith(("/", "*")) and (
+            BINARY_ASSET.search(pattern) or HIDDEN_BY_DESIGN.search(pattern)):
+        return False  # `*.png binary`, `yarn.lock -diff`: assets and output hidden by design
     for attribute in attributes:
         name = attribute.lstrip("-!").split("=")[0]
         if attribute in ("-diff", "!diff") or name not in HARMLESS_ATTRIBUTES:
@@ -316,7 +320,9 @@ MODULE_COLLECTION_PY = re.compile(r"^[A-Za-z_]\w*\s*(?::\s*[\w\[\], |.]{1,120})?
 LOOP_HEAD = re.compile(r"^\s*(?:async\s+)?(?:for(?:each)?|while)\b|\.(?:for_each|forEach)\b[^\n]{0,80}(?:\{|->\s*\{)\s*(?:\|[^|]{0,40}\|\s*)?$"
     # Ruby iterators need a Ruby block (do ... or { |x| ...), so `if (checkout.step) {` is no loop.
     r"|\.(?:(?:\w{1,20}_)?each(?:_\w{1,20}|[A-Z]\w{0,20})?|times|upto|step|map|flat_map|select|reject)\b[^\n]{0,80}"
-    r"(?:\bdo\s*(?:\|[^|]{0,40}\|)?|\{\s*\|[^|]{0,40}\|)\s*$|^\s*(?:do|loop)\s*\{|\.(?:forEach|map|flatMap)\(\s*(?:async\b|\(?[\w\s,{}]{0,80}\)?\s*=>\s*\{\s*$)")
+    r"(?:\bdo(?:\s*\|[^|]{0,40}\|)?|\{\s*\|[^|]{0,40}\|)\s*$"
+    r"|^\s*(?:until\b|loop\s+do\b)|\.(?:in_batches|find_in_batches|downto)\b[^\n]{0,80}\bdo\b"
+    r"|\.(?:each|map|flatMap|filter|reduce|some|every|forEach)\(\s*(?:[\w$.]{1,40},\s*)?(?:async\s+)?function\b[^\n]{0,80}\{\s*$|^\s*(?:do|loop)\s*\{|\.(?:forEach|map|flatMap|each)\(\s*(?:[\w$.]{1,40},\s*)?(?:async\b|\(?[^()=\n]{0,80}\)?\s*(?::[^=\n]{1,60})?=>\s*\{\s*$)")
 LOOP_COST = re.compile(_SQL + "|" + _ORM + "|" + _NET + r"|\bawait\b")
 LOOP_MAX = 40  # body lines followed after a loop header
 
@@ -352,13 +358,11 @@ MARKUP = re.compile(r"\.(?:tsx|jsx|vue|svelte|astro|html?)$", re.I)
 # translation and data files, and test conventions NOT_CODE does not cover
 # (Go/Python suffixes, e2e, mocks).
 SPECIALIST_SKIP = re.compile(
-    r"(^|/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?|Cargo\.lock|poetry\.lock|Pipfile\.lock|uv\.lock"
-    r"|composer\.lock|Gemfile\.lock|go\.sum|flake\.lock)$|\.(min\.(js|css)|map|snap|lock|svg)$"
-    r"|(^|/)(vendor|node_modules|__generated__|generated|testdata|__mocks__|__snapshots__|e2e|cypress|spec)/"
+    r"(^|/)(" + _LOCKFILES + r")$|\.(min\.(js|css)|map|snap|lock|svg)$|" + _GENERATED +
+    r"|(^|/)(vendor|node_modules|testdata|__mocks__|e2e|cypress|spec)/"
     r"|^((packages|apps|libs|services)/[^/]+/)?(dist|build|out|\.next)/"  # ambiguous output dirs only at a repo or package root
     r"|(^|/)(locales?|i18n|translations?|messages|lang)/.*\.(json|ya?ml|po|pot|properties|xlf|xliff|arb|strings)$"  # translation data, not code
-    r"|\.(po|pot|xlf|xliff|csv|tsv)$"
-    r"|\.generated\.|_pb2\.py$|\.pb\.go$|_test\.[a-z]+$|_spec\.rb$|(^|/)conftest\.py$", re.I)
+    r"|\.(po|pot|xlf|xliff|csv|tsv)$|_test\.[a-z]+$|_spec\.rb$|(^|/)conftest\.py$", re.I)
 CI_PATH = re.compile(r"(^|/)\.github/(workflows|actions)/|\.gitlab-ci\.ya?ml$|(^|/)\.circleci/|(^|/)azure-pipelines|(^|/)action\.ya?ml$|(^|/)\.buildkite/", re.I)
 BUILD_CONFIG = re.compile(
     r"(^|/)(package\.json|tsconfig[^/]*\.json|jsconfig\.json|pyproject\.toml|setup\.(py|cfg)|requirements[^/]*\.txt|Cargo\.toml|go\.mod|Gemfile"
