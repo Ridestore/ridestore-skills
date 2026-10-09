@@ -8,8 +8,8 @@ import sys
 from pathlib import Path
 
 
-AGENTS = ("opus-reviewer", "sonnet-reviewer")
 REQUIRED = ("SKILL.md", "agents/openai.yaml", "scripts/install.py",
+            "scripts/review_packet.py", "scripts/merge_findings.py", "scripts/check_matrix.py",
             "references/claude-models.md", "references/codex-models.md",
             "references/local-review.md", "references/roles.md",
             "references/progress.md", "references/workspaces.md",
@@ -56,7 +56,10 @@ def main():
     targets = [(args.codex_root, "pr-shepherd", source),
                (args.claude_root, "pr-shepherd", source)]
     models = {}
-    for name in AGENTS:
+    agents = sorted(p.stem for p in (source / "agents").glob("*-reviewer*.md"))
+    if not agents:
+        raise ValueError("Source package has no reviewer definitions in agents/")
+    for name in agents:
         agent = source / "agents" / (name + ".md")
         text = agent.read_text()
         if field(text, "name") != name:

@@ -1,71 +1,72 @@
 # Review roles
 
 Each role is a reviewer persona with one responsibility. The names are short
-handles that keep the plan, progress and PR summary readable; they say nothing
-about which model runs a role (see the model matrices). Running these roles
-locally is not a claim that any remote review pipeline ran.
+handles for the plan, progress and PR summary; they say nothing about the model
+(see the model matrices). Running these roles locally is not a claim that any
+remote review pipeline ran.
 
-| Role | Name | Responsibility |
-| --- | --- | --- |
-| Guidelines | Finn | Explicit applicable AGENTS/CLAUDE/REVIEW rules; quote the exact violated rule. |
-| Bugs | Maya | Concrete incorrect behavior, boundaries, races, cleanup, error paths and reachable null states. |
-| Architecture | Theo | Callers, compatibility, service/data contracts, side effects, concurrency and failure propagation. |
-| Types | Nora | Runtime data versus assumed types, validation, narrowing and external boundaries; not duplicate compiler output. |
-| Comments and intent | Jasper | Changed code versus documented intent, stale comments and misleading API documentation. |
-| Independent review | Felix | A fresh review of the complete diff; do not show other findings until its independent pass returns. |
-| Security | Remy | Authorization, untrusted input, injection, secrets, trust boundaries and data exposure. |
-| Performance | Ruby | Hot paths, queries, network calls, allocations, bounded work and resource limits. |
-| Code quality | Oscar | Introduced maintainability problems with concrete consequences or explicit rules; avoid speculative refactors. |
-| Language | Iris | Language-specific correctness and conventions for the language actually changed. |
-| Self-reflection | Zoe | Challenge findings for false positives, introduced behavior and actual impact. |
-| Debate | Cleo | Resolve conflicting findings/fixes using source evidence; expose genuine user decisions. |
-| Confidence | Milo | State whether evidence supports the finding; never use a confidence number alone to erase a concrete unresolved hypothesis. |
-| Verification | Vera | Reproduce or trace a finding and independently verify the proposed fix. |
-| Fact check | Otis | Inspect real signatures, schemas, imports, callers and official docs rather than assumed APIs. |
-| Reachability | Luna | Trace guards and state transitions for null, undefined and initialization claims. |
-| Incremental fix check | Maya | Confirm each fix and inspect its consumers for regressions. |
+Every prompt names the role's scope **and what to leave to others**. Overlap is
+the main waste in a local review: the same stale sentence reported by five
+roles costs five reviews. A role may still report something outside its scope
+when it is critical, marked `out_of_scope: true`.
+
+| Role | Name | Owns | Leaves to others |
+| --- | --- | --- | --- |
+| Guidelines | Finn | Explicit AGENTS/CLAUDE/REVIEW rules; quotes the exact rule broken, including required doc updates. | Whether prose matches code (Jasper); code bugs (Maya). |
+| Bugs | Maya | Concrete incorrect behavior: boundaries, races, cleanup, error paths, reachable null states. | Doc wording, style, architecture opinions. |
+| Architecture | Theo | Callers, compatibility, service/data contracts, side effects, rollout/rollback, failure propagation. | Line-level bugs (Maya); types (Nora); doc wording. |
+| Types | Nora | Runtime data versus assumed types, validation, narrowing, casts at external boundaries; not compiler output. | Behavior bugs that are not type-shaped. |
+| Comments and intent | Jasper | Stale or false comments, JSDoc, test names and docs versus the code at this head. | Rule compliance (Finn); code bugs. |
+| Independent review | Felix | A fresh full-diff review; sees no other findings or author claims before returning. | Nothing: deliberately overlapping second opinion. |
+| Security | Remy | Authorization, untrusted input, injection, secrets, trust boundaries, data exposure. | Non-security bugs. |
+| Performance | Ruby | Hot paths, queries, network calls, allocations, bounded work, resource limits. | Correctness bugs. |
+| Code quality | Oscar | Introduced maintainability problems with a concrete consequence or rule. | Speculative refactors; style a linter owns. |
+| Language | Iris | Language-specific correctness and conventions for the language actually changed. | Cross-language architecture. |
+| Self-reflection | Zoe | Challenges findings for false positives and actual impact. | New findings. |
+| Debate | Cleo | Resolves conflicting findings/fixes from source; exposes genuine user decisions. | New findings. |
+| Confidence | Milo | Whether evidence supports each finding; a number never erases a concrete hypothesis. | New findings. |
+| Verification | Vera | Reproduces or traces a finding and verifies the proposed fix. | New findings. |
+| Fact check | Otis | Real signatures, schemas, imports, callers and official docs, not assumed APIs. | New findings. |
+| Reachability | Luna | Guards and state transitions behind null/undefined/initialization claims. | New findings. |
+| Incremental fix check | Maya | Confirms each fix and inspects its consumers for regressions. | Re-reviewing unchanged areas. |
 
 Optional companion roles: Ada (PR summary), Eli (change guide), Sofia
-(translations), Hugo (E2E relevance), and Max (comment replies). The coordinator
-may perform these support duties. They do not count as independent code review.
-Translation execution and live E2E need their own applicable tools and evidence.
+(translations), Hugo (E2E relevance), Max (comment replies). The coordinator may
+do them; they never count as independent code review.
 
 ## Routing
 
 - **Basic:** small, isolated implementation with no contract or trust-boundary
-  change. Run Maya and Felix as separate native agents, plus applicable specialists.
-  The coordinator still checks
-  repository rules and verifies findings.
-- **Standard:** ordinary code changes. Run Finn, Maya, Nora and Felix. If the repo
-  has no written guidance, replace Finn with Theo. Add specialists according
-  to the actual diff.
+  change. Maya and Felix as separate agents, plus applicable specialists.
+- **Standard:** ordinary code changes. Finn, Maya, Nora and Felix. Without
+  written repository guidance, Theo replaces Finn.
 - **Deep:** shared API/schema changes, cross-service behavior, security,
-  concurrency, lifecycle changes, broad refactors or substantial agent/workflow
-  instructions. Run Finn, Maya, Theo, Nora and Jasper, plus Felix as an
-  independent agent. Add relevant specialists.
+  concurrency, lifecycle changes, broad refactors, substantial agent/workflow
+  instructions, or model/cost policy. Finn, Maya, Theo, Nora, Jasper and Felix.
 
-The local quality profile deliberately retains an independent second opinion
-even for Basic changes. Downstream review settings and the
-optional attestation label never lower this local profile. Use the runtime's
-versioned matrix; spend on relevant depth and independent evidence, not repeated
-identical reviews. A specialist can combine evidence duties where stated below,
-but Maya and Felix must be distinct first-pass calls.
+**Docs-and-rules merge.** When most of the diff is documentation, policy or
+instructions, run Finn and Jasper as one call ("Finn+Jasper") that owns both
+columns. It still counts as both roles.
 
 Remy is required when trust, auth, secret, input or permission boundaries
 change; Ruby for hot paths/resource changes; Oscar for structural complexity;
-Iris for language-specific behavior outside the other reviewers' expertise.
-Do not run unrelated specialists only to fill a matrix.
+Iris for language-specific behavior outside the others' expertise. Do not run
+specialists only to fill a matrix. Downstream review settings and the optional
+attestation label never lower this profile. Maya and Felix are always distinct
+first-pass calls.
 
-When findings exist, run Vera with Otis and Milo responsibilities; run Luna
-for null/initialization findings. Deep reviews also run Zoe, and Cleo when
-findings conflict or two or more findings need reconciliation. These roles
-may share a single evidence subagent when its output separately names the
-checks it performed. A reviewer may self-reflect, but the author alone cannot
-provide the independent verification of a disputed fix.
+**When findings exist,** run one evidence agent covering Vera, Otis and Milo
+(and Luna for null/initialization findings); its output names each check
+separately. Deep reviews also run Zoe, and Cleo when findings conflict. If the
+coordinator does this evidence work itself instead, the review is still valid
+for publishing but is **not** a passing review for attestation; say so in the
+PR. The author alone never independently verifies a disputed fix.
 
-Every review must inspect relevant unchanged callers, tests and contracts.
-Report only introduced issues anchored to the changed behavior. Include a
-concrete trigger, consequence, source location and suggested fix. Missing
-source means inspect it or report `needs_context`; it is neither a proven bug
-nor proof that a finding is false. Before returning no findings, try a realistic
-counterexample to each changed guard, validation rule, return or side effect.
+## What every role does
+
+Inspect relevant unchanged callers, tests and contracts. Report only introduced
+issues anchored to changed behavior, each with a concrete trigger, consequence,
+source location and suggested fix. Missing source means inspect it or report
+`needs_context`; it is neither a proven bug nor a disproof. Before returning no
+findings, try a realistic counterexample to each changed guard, validation rule,
+return or side effect.

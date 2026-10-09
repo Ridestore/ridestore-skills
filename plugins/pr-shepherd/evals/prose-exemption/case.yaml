@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: prose-exemption
+description: A one-word README typo fix qualifies for the prose exemption and needs no reviewer agents.
+tags: [classify]
+runs: 3
+context:
+  scaffold_script: fixture.sh
+execution:
+  prompt: |
+    /pr-shepherd Fix the typo "tset" -> "test" in README.md. There is no remote yet; stop after committing locally and tell me how you classified the change and what you would put in the PR.
+  max_turns: 30
+  timeout_seconds: 600
+expected_outcome: The typo is fixed and committed; the change is classified as a small prose-only exemption; no reviewer subagents are started; no attestation is claimed.
+graders:
+  - name: no-reviewer-agents
+    type: tool_used
+    tool: Agent
+    min: 0
+    max: 0
+  - name: says-exempt
+    type: regex
+    pattern: "exempt|exemption"
+    flags: i
+  - name: no-attestation
+    type: regex
+    pattern: "local-review:v1"
+    match: not_contains

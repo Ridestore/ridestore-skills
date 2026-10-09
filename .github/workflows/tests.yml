@@ -27,9 +27,24 @@ jobs:
           base="${{ github.event.pull_request.base.sha || github.event.before }}"
           python3 scripts/check_versions.py "$base"
 
+  plugins:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Run tests of every plugin that has them
+        run: |
+          set -e
+          for dir in plugins/*/; do
+            if [ -d "$dir/tests" ]; then
+              echo "::group::$dir"
+              (cd "$dir" && python3 -m unittest discover -s tests -v)
+              echo "::endgroup::"
+            fi
+          done
+
   release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [catalog, versions]
+    needs: [catalog, versions, plugins]
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -30,7 +30,12 @@ A plain request that asks for this workflow also triggers it.
 3. **Classify the whole PR.** Small prose-only changes, editorial content the
    repository declares as such, and literal image URL swaps can skip the
    multi-agent review. Everything else goes through it.
-4. **Local multi-agent review.** Read-only reviewers inspect one frozen snapshot
+4. **Self-check.** `scripts/review_packet.py` freezes the snapshot and writes a
+   self-check: values the change replaced that still appear (`--stale`), the
+   instruction files to satisfy, and a short list of usual gaps (missing doc
+   updates, logs that don't report what's actually sent). These get fixed
+   before any reviewer runs, so reviewers spend their time on real problems.
+5. **Local multi-agent review.** Read-only reviewers inspect one frozen snapshot
    (base, head and tree SHAs) of the complete PR diff. Each one has a role:
 
    | Role | Focus |
@@ -44,14 +49,19 @@ A plain request that asks for this workflow also triggers it.
    | Remy, Ruby, Oscar, Iris | security, performance, code quality, language specifics, when the diff needs them |
    | Vera, Otis, Milo, Luna, Zoe, Cleo | verify findings, check facts and reachability, reconcile conflicting findings |
 
-   Basic, Standard and Deep tiers decide which roles run. The coordinator
-   verifies each finding against the source, fixes the confirmed ones and
-   re-reviews until nothing actionable is left. A reviewer that didn't return
-   means the review is incomplete, not approved.
-5. **Publish.** Pushes only the reviewed head and opens a normal PR. The PR body
-   records the reviewed SHAs, which roles and models actually ran, the checks
-   and any limitations.
-6. **Follow up.** About five minutes after the PR opens, it reads review
+   Basic, Standard and Deep tiers decide which roles run. Each prompt names the
+   role's scope **and what to leave to other roles**, and doc-heavy changes run
+   Finn and Jasper as one call, so the same issue isn't paid for five times.
+   `scripts/merge_findings.py` merges the replies, groups the same issue across
+   roles and flags reviewers that didn't finish. The coordinator verifies each
+   finding against the source, fixes the confirmed ones and re-reviews until
+   nothing actionable is left. A reviewer that didn't return means the review is
+   incomplete, not approved.
+6. **Publish.** Pushes only the reviewed head and opens a normal PR. The PR body
+   records the reviewed SHAs, which roles and models actually ran with their
+   tokens and duration, decisions you made along the way, the checks and any
+   limitations.
+7. **Follow up.** About five minutes after the PR opens, it reads review
    threads, comments and checks. It fixes what is actionable (with another
    local review before each push), replies with evidence and resolves the
    threads it addressed. It stops on merge, close or the deadline (90 minutes
@@ -63,12 +73,15 @@ It never merges or deploys unless you say so separately.
 
 | Runtime | How reviewers run |
 | --- | --- |
-| Claude Code | Two native subagents shipped with the plugin: `opus-reviewer` (`claude-opus-5-5`) and `sonnet-reviewer` (`claude-sonnet-5-5`), both at high effort and limited to Read/Grep/Glob. As a plugin they appear as `pr-shepherd:opus-reviewer` and `pr-shepherd:sonnet-reviewer`. |
+| Claude Code | Four native subagents shipped with the plugin, limited to Read/Grep/Glob: `opus-reviewer` and `sonnet-reviewer` (`claude-opus-5-5` / `claude-sonnet-5-5` at high) for most roles, and `opus-reviewer-xhigh` / `sonnet-reviewer-xhigh` at xhigh for types, code quality, language and verification, matching the Codex matrix. As a plugin they appear as `pr-shepherd:opus-reviewer` and so on. |
 | Codex | Native Codex subagents: mostly `gpt-6.1-sol` at high effort, `gpt-6-luna` at xhigh for types, code quality, language and verification, `gpt-6-astra` at medium for security. |
 
 Full role-to-model tables:
 [`claude-models.md`](skills/pr-shepherd/references/claude-models.md),
-[`codex-models.md`](skills/pr-shepherd/references/codex-models.md).
+[`codex-models.md`](skills/pr-shepherd/references/codex-models.md). Each one has a
+**Last verified** line saying which combinations actually ran and when;
+`scripts/check_matrix.py` checks the definitions against the tables and warns
+when a matrix hasn't been verified for 60 days.
 
 ## Configure it per repository
 
@@ -124,10 +137,10 @@ same runtime, or everything is registered twice. Details are in
 skills/pr-shepherd/
   SKILL.md                    the workflow (version in metadata)
   agents/openai.yaml          Codex skill metadata
-  agents/*-reviewer.md        the two Claude reviewer definitions
+  agents/*-reviewer*.md       the four Claude reviewer definitions (high and xhigh)
   references/
     local-review.md           freezing the snapshot, review packet, fix loop, pass gate
-    roles.md                  roles and Basic / Standard / Deep routing
+    roles.md                  roles, what each leaves to others, Basic / Standard / Deep routing
     claude-models.md          Claude role-to-model matrix
     codex-models.md           Codex role-to-model matrix
     progress.md               visible progress while agents run
@@ -135,5 +148,25 @@ skills/pr-shepherd/
     attestation.md            optional marker + label for review automation
     workspaces.md             isolation managers
     maintenance.md            installing, updating, changing models
-  scripts/install.py          link installer for development copies
+  scripts/
+    review_packet.py          freeze the snapshot, self-check, write per-role prompts
+    merge_findings.py         merge reviewer replies, group duplicates, pass-gate summary
+    check_matrix.py           definitions vs matrix tables, "last verified" age
+    install.py                link installer for development copies
+tests/test_scripts.py         tests for the scripts (run in CI)
+evals/                        `claude plugin eval` cases: no push before review,
+                              prose exemption, no attestation when incomplete,
+                              asking about product decisions
 ```
+
+## Evals
+
+The eval cases check the decisions that must not regress. They make real model
+calls, so run them on purpose, with a cost cap:
+
+```sh
+claude plugin eval plugins/pr-shepherd --runs 1 --max-cost-usd 5 --no-publish
+```
+
+Cases with a `fixture.sh` need `--scaffold` (it builds a small git repository in
+the eval workspace).
