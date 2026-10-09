@@ -18,10 +18,12 @@
   (no colour, external diff tool or custom prefixes), so a lone carriage return
   or the user's git config cannot shift hunks. Specialist signals scan lines up
   to 2,000 characters and every pattern is bounded, so a minified line cannot
-  stall the script; security signals still scan whole lines. Attributes come
-  from the merge base (`--attr-source`, git 2.40+; older git uses `--text`), so
-  a `.gitattributes` added by the PR cannot hide its own lines, and a changed
-  `.gitattributes` or a source file git still shows as binary routes Remy+.
+  stall the script; security signals still scan whole lines. Both the full and
+  the fix diff read attributes from the merge base (`--attr-source`, git
+  2.40+), so a `.gitattributes` added by the PR cannot hide its own lines. A
+  `.gitattributes` line that changes how files diff (`-diff`, `binary`,
+  `diff=`, `filter=`, …), or a file git still shows as binary that is not an
+  image, font, archive or other asset, routes Remy+.
 - Repository signals (`--security-signal` and `--specialist-signal`) are
   recorded as `repo: NAME`: they add to the built-in signals and can no longer
   replace or switch one off. An invalid regex stops with the offending item.

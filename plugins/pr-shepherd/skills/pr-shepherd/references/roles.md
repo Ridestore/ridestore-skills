@@ -61,9 +61,10 @@ IAM, Dockerfile `USER`, security groups), production commerce APIs (the
 commercetools SDK or API), payments (Stripe, Adyen, Klarna, PayPal, payment
 intents/methods/providers, refunds), personal data where it is stored or queried
 (email, phone, address, birth date in migrations, schemas, models or SQL/ORM
-writes), a changed `.gitattributes` or a source file git shows as binary (its
-lines are hidden), or when security-relevant changes span two or more top-level
-packages. Repository instructions can add their own production API clients as
+writes), a `.gitattributes` line that changes how files diff, a file git shows
+as binary that is not an image, font, archive or other asset (its lines are
+hidden), or when security-relevant changes span two or more top-level packages.
+Repository instructions can add their own production API clients as
 `--security-signal NAME=REGEX` (recorded as `repo: NAME`; it adds, never
 replaces). Otherwise routine Remy (input validation, sanitization or injection
 checks in one component, dependency bumps, sensitive logging). When unsure, use
