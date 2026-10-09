@@ -25,18 +25,19 @@ choices take precedence. Keep the current coordinator and its reasoning setting.
 | Ruby — performance | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
 | Oscar — code quality | `claude-sonnet-5-5` | high | sonnet-reviewer |
 | Iris — language | `claude-sonnet-5-5` | high | sonnet-reviewer |
-| Zoe / Cleo — reflection and debate | `claude-opus-5-5` | medium | opus-reviewer-medium |
-| Vera — verification | `claude-opus-5-5` | medium | opus-reviewer-medium |
-| Otis / Milo / Luna — fact check, confidence, reachability | `claude-opus-5-5` | medium | opus-reviewer-medium |
+| Zoe / Cleo — reflection and debate | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
+| Vera — verification | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
+| Otis / Milo / Luna — fact check, confidence, reachability | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
 | Ada / Eli / Sofia / Hugo / Max — optional companion duties | Coordinator, or `claude-sonnet-5-5` if delegated | Coordinator's own, or medium when delegated | Not counted as review |
 
 Since 2.4.0 Opus never runs above medium, and everything runs one effort step
 lower than before: Sonnet at high for types, code quality and language, medium
-for every other role. Sensitive security (Remy+) runs Opus while routine Remy
-runs Sonnet, so the security tier still differs. On a real Deep review
-(2026-10-09) Opus at high took about 6.5 minutes and Sonnet at xhigh about 8.
-Maya and Theo have run Opus at medium since 2.1.0. Whether medium finds as much
-is not measured yet; the xhigh and Opus-high definitions were removed.
+for every other role. Opus (at medium) is kept for bugs, architecture, the
+independent pass and sensitive security (Remy+); routine Remy and the evidence
+and reflection roles (Vera, Otis, Milo, Luna, Zoe, Cleo) run Sonnet. On a real
+Deep review (2026-10-09) Opus at high took about 6.5 minutes and Sonnet at xhigh
+about 8. Maya and Theo have run Opus at medium since 2.1.0. Whether medium finds
+as much is not measured yet; the xhigh and Opus-high definitions were removed.
 
 ## Dispatch
 
