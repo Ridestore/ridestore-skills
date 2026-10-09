@@ -19,7 +19,9 @@
 - Security reviewer tiers: Remy runs on GPT-6.1 Sol/high (Claude: Opus/high)
   for routine security checks and on Remy+ (GPT-6 Astra at medium at most;
   Claude: Opus/xhigh) for authentication, authorization, trust boundaries,
-  secrets, infra permissions or cross-service changes. `review_packet.py` picks
+  secrets, infra permissions, production commerce APIs (commercetools),
+  payments, stored personal data or cross-service changes; repositories can add
+  their own signals with `--security-signal`. `review_packet.py` picks
   the tier from signals in changed code and config (docs and tests ignored) and
   records the matches; the coordinator may raise it, never lower it.
 - OpenCode support: four reviewer agents in `agents/opencode/` with mixed

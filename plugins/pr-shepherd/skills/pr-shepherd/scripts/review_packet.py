@@ -39,6 +39,8 @@ SECURITY_SIGNALS = {
     "authorization": r"\b(permissions?|rbac|acls?|authori[sz][a-z_]*|is_?admin|has_?role|require_?role|row[ _-]level[ _-]security|create policy)\b",
     "trust boundary": r"\b(webhooks?|hmac|signatures?|verify_?signature|cors|csrf|x-hub-signature|ingress|api[_-]?gateway)\b",
     "secrets and crypto": r"\b(secrets?|api[_-]?keys?|private[_-]?keys?|encrypt[a-z_]*|decrypt[a-z_]*|kms|bcrypt|argon2|scrypt)\b",
+    "production commerce api": r"@commercetools/|\bcommercetools\b|\bcreateApiBuilderFromCtpClient\b|\bctp[_-]?(client|api|project)\b|api\.[a-z0-9.-]*commercetools\.com|\bwithProjectKey\b",
+    "payments": r"\b(stripe|adyen|klarna|paypal|braintree|mollie|checkout\.com|payment[_-]?(intent|method|provider|service|gateway|session)s?|refunds?|chargebacks?|capture[_-]?payment)\b",
     "infra permissions": r"(^|\s)(permissions:|secrets\.)|\b(iam|assume_?role|security_?groups?)\b|^\+?\s*USER\s",
 }
 
@@ -46,10 +48,17 @@ SECURITY_SIGNALS = {
 NOT_CODE = re.compile(r"(\.(md|mdx|txt|rst)$|(^|/)(docs?|tests?|__tests__|fixtures)/|\.(test|spec)\.[a-z]+$|(^|/)test_[^/]+$)", re.I)
 
 
-def security_tier(diff_text):
+# Personal data counts only where it is stored or queried, not wherever "email" appears.
+PERSONAL_DATA = re.compile(r"\b(e-?mail|phone|address|date_of_birth|dob|birthdate|ssn|national_id|pii|gdpr)\b", re.I)
+STORAGE_PATH = re.compile(r"(^|/)(migrations?|schema|models?|entities|repositor(y|ies)|db|database|prisma|sql)(/|\.|$)|\.(sql|prisma)$", re.I)
+STORAGE_LINE = re.compile(r"\b(insert\s+into|update\s+\w+\s+set|create\s+table|alter\s+table|select\s+.+\s+from|\.(insert|upsert|update|create|save|findMany|findUnique|query)\s*\()", re.I)
+
+
+def security_tier(diff_text, extra_signals=None):
     """'remy+' with its matches when a security signal appears in a changed code or
     config path or added line (docs, tests and fixtures are ignored: prose about auth
     is not an auth change), otherwise 'remy'. Cross-service: signals in 2+ top-level dirs."""
+    signals = {**SECURITY_SIGNALS, **(extra_signals or {})}
     matches, current = {}, None
     for line in diff_text.splitlines():
         if line.startswith("+++ "):
@@ -62,9 +71,11 @@ def security_tier(diff_text):
         else:
             continue
         for text in texts:
-            for name, pattern in SECURITY_SIGNALS.items():
+            for name, pattern in signals.items():
                 if re.search(pattern, text, re.I | re.M):
                     matches.setdefault(name, set()).add(current)
+            if PERSONAL_DATA.search(text) and (STORAGE_PATH.search(current) or STORAGE_LINE.search(text)):
+                matches.setdefault("stored personal data", set()).add(current)
     files = {f for fs in matches.values() for f in fs}
     tops = {f.split("/")[0] for f in files if "/" in f}
     if len(tops) >= 2:
@@ -187,6 +198,8 @@ def main(argv=None):
     ap.add_argument("--runtime", choices=["claude", "codex", "opencode"], required=True)
     ap.add_argument("--criteria", help="acceptance criteria text, or a path to a file holding them")
     ap.add_argument("--stale", action="append", default=[], help="regex that must no longer appear at head (repeatable)")
+    ap.add_argument("--security-signal", action="append", default=[], metavar="NAME=REGEX",
+                    help="extra repository signal that sends Remy to Remy+ (e.g. its production API client)")
     ap.add_argument("--previous-head", help="last reviewed head, for an incremental fix check")
     ap.add_argument("--findings", help="file with earlier findings and dispositions, for a recheck")
     ap.add_argument("--out", help="output directory (default: <git-path>/pr-shepherd-review/<head12>)")
@@ -222,7 +235,8 @@ def main(argv=None):
     if unknown:
         raise SystemExit(f"unknown roles {unknown}; known: {sorted(roles_info)}")
 
-    tier, signals = security_tier(open(diff_path, encoding="utf-8").read())
+    extra = dict(item.split("=", 1) for item in args.security_signal)
+    tier, signals = security_tier(open(diff_path, encoding="utf-8").read(), extra)
     criteria = args.criteria or ""
     if criteria and os.path.isfile(criteria):
         criteria = open(criteria, encoding="utf-8").read().strip()

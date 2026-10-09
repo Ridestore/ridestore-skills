@@ -57,8 +57,13 @@ cookies, passwords, MFA), authorization (permissions, RBAC/ACL, role checks,
 row-level security), trust boundaries (webhooks, HMAC/signature checks, CORS,
 CSRF, gateways), secrets and crypto (secrets, API/private keys, encryption,
 password hashing, KMS), infra permissions (workflow `permissions:`/`secrets.`,
-IAM, Dockerfile `USER`, security groups), or when security-relevant changes
-span two or more top-level packages. Otherwise routine Remy (input validation,
+IAM, Dockerfile `USER`, security groups), production commerce APIs (the
+commercetools SDK or API), payments (Stripe, Adyen, Klarna, PayPal, payment
+intents/methods/providers, refunds), personal data where it is stored or
+queried (email, phone, address, birth date in migrations, schemas, models or
+SQL/ORM writes), or when security-relevant changes span two or more top-level
+packages. Repository instructions can add their own production API clients as
+`--security-signal NAME=REGEX`. Otherwise routine Remy (input validation,
 sanitization or injection checks in one component, dependency bumps, sensitive
 logging). When unsure, use Remy+. The coordinator may raise routine to Remy+
 with a stated reason, never lower a detected Remy+, and names the decision and
