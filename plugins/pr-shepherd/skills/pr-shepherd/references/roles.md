@@ -49,7 +49,22 @@ instructions, run Finn and Jasper as one call ("Finn+Jasper") that owns both
 columns. It still counts as both roles.
 
 Remy is required when trust, auth, secret, input or permission boundaries
-change; Ruby for hot paths/resource changes; Oscar for structural complexity;
+change. **Which model Remy uses is decided by signals in the diff, not by
+judgement** (`review_packet.py` detects them and records the matches): Remy+
+(the stronger security row) when changed paths or added lines touch
+authentication (login, session, JWT, OAuth, access/refresh/bearer tokens,
+cookies, passwords, MFA), authorization (permissions, RBAC/ACL, role checks,
+row-level security), trust boundaries (webhooks, HMAC/signature checks, CORS,
+CSRF, gateways), secrets and crypto (secrets, API/private keys, encryption,
+password hashing, KMS), infra permissions (workflow `permissions:`/`secrets.`,
+IAM, Dockerfile `USER`, security groups), or when security-relevant changes
+span two or more top-level packages. Otherwise routine Remy (input validation,
+sanitization or injection checks in one component, dependency bumps, sensitive
+logging). When unsure, use Remy+. The coordinator may raise routine to Remy+
+with a stated reason, never lower a detected Remy+, and names the decision and
+its matches in the plan and the PR body.
+
+Ruby is required for hot paths/resource changes; Oscar for structural complexity;
 Iris for language-specific behavior outside the others' expertise. Do not run
 specialists only to fill a matrix. Downstream review settings and the optional
 attestation label never lower this profile. Maya and Felix are always distinct

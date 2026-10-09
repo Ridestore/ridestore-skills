@@ -20,7 +20,8 @@ differ. Codex-side roles keep the Codex matrix's models and efforts.
 | Nora — types | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |
 | Jasper — comments and intent | `openai/gpt-6.1-sol` | high | pr-shepherd-sol |
 | Felix — independent reviewer | `openai/gpt-6.1-sol` | high | pr-shepherd-sol |
-| Remy — security | `openai/gpt-6-astra` | medium | pr-shepherd-astra |
+| Remy — security, routine | `openai/gpt-6.1-sol` | high | pr-shepherd-sol |
+| Remy+ — security: auth, permissions, trust boundaries, secrets, infra, cross-service | `openai/gpt-6-astra` | medium | pr-shepherd-astra |
 | Ruby — performance | `openai/gpt-6.1-sol` | high | pr-shepherd-sol |
 | Oscar — code quality | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |
 | Iris — language | `openai/gpt-6-luna` | xhigh | pr-shepherd-luna-xhigh |

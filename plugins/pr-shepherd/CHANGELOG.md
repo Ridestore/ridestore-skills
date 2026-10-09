@@ -16,6 +16,12 @@
   definitions against the tables and flags old verifications (run in validation).
 - `claude plugin eval` suite with four cases; script tests run in CI.
 - `SKILL.md` is about 40% shorter and says which reference to read when.
+- Security reviewer tiers: Remy runs on GPT-6.1 Sol/high (Claude: Opus/high)
+  for routine security checks and on Remy+ (GPT-6 Astra at medium at most;
+  Claude: Opus/xhigh) for authentication, authorization, trust boundaries,
+  secrets, infra permissions or cross-service changes. `review_packet.py` picks
+  the tier from signals in changed code and config (docs and tests ignored) and
+  records the matches; the coordinator may raise it, never lower it.
 - OpenCode support: four reviewer agents in `agents/opencode/` with mixed
   providers (Felix's independent pass on a different model family than Maya),
   `references/opencode-models.md`, `review_packet.py --runtime opencode`,

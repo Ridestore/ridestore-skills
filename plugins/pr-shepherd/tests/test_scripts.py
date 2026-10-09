@@ -76,6 +76,30 @@ class ReviewPacketTest(unittest.TestCase):
         self.assertTrue(roles["felix"]["model"].startswith("openai/"))
         self.assertEqual(roles["felix"]["definition"], "pr-shepherd-sol")
 
+    def test_remy_model_follows_security_signals(self):
+        _, routine = review_packet.security_tier("+++ b/src/form.py\n+value = int(request.args['n'])\n")
+        self.assertEqual(review_packet.security_tier("+++ b/src/form.py\n+value = clean(x)\n")[0], "remy")
+        self.assertEqual(routine, {})
+        # LLM tokens and config policies are not security signals.
+        self.assertEqual(review_packet.security_tier("+++ b/src/llm.ts\n+const tokens = usage.output_tokens; policy.version\n")[0], "remy")
+        tier, found = review_packet.security_tier(
+            "+++ b/api/session.ts\n+const jwt = sign(user)\n+++ b/.github/workflows/ci.yml\n+permissions:\n")
+        self.assertEqual(tier, "remy+")
+        self.assertIn("authentication", found)
+        self.assertIn("infra permissions", found)
+        self.assertIn("cross-service", found)
+
+    def test_packet_records_the_security_tier(self):
+        write(os.path.join(self.repo, "src", "auth.py"), "def login(password): ...\n")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-qm", "auth")
+        out = os.path.join(self.tmp.name, "sec")
+        review_packet.main(["--repo", self.repo, "--base", "main", "--roles", "remy", "--runtime", "codex", "--out", out])
+        manifest = json.load(open(os.path.join(out, "manifest.json")))
+        self.assertEqual(manifest["security"]["tier"], "remy+")
+        self.assertEqual(manifest["roles"]["remy"]["model"], "gpt-6-astra")
+        self.assertIn("Remy uses the `remy+` row: authentication", open(os.path.join(out, "self-check.md")).read())
+
     def test_stale_terms_fail_the_self_check(self):
         code, out = self.run_packet("--stale", "runs at medium")
         self.assertEqual(code, 1)
