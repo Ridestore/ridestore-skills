@@ -3,7 +3,9 @@
 Matrix revision: 2026-10-09 (skill 2.0.0), local quality profile.
 Last verified: 2026-10-09 — Claude Code 2.1.295 ran `opus-reviewer` and
 `sonnet-reviewer` (Opus 5.5 / Sonnet 5.5, effort high) as native read-only
-reviewers on a real PR review. The xhigh definitions are not yet runtime-verified.
+reviewers on a real PR review; `sonnet-reviewer-xhigh` ran Nora on a real
+review the same day and returned a complete result (observed response model not
+captured). `opus-reviewer-xhigh` is not yet runtime-verified.
 Check with `python3 scripts/check_matrix.py` (definitions, pins, verification age).
 
 Use native Claude subagents; no hidden Codex/OpenAI fallback. Explicit user model
