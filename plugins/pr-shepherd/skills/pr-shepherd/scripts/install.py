@@ -87,19 +87,28 @@ def read_exact(path):
         return fh.read()
 
 
-def dsh_outside_problem(outside):
-    """Why text outside the managed block makes appending unsafe, or None. The file
-    must be a YAML block list starting at column 0, with no copies of our rows."""
-    items, lines = [], [l for l in outside.splitlines(True) if l.strip() and not l.lstrip().startswith("#")]
-    if lines and not lines[0].startswith("-"):
-        return "not a YAML block list at column 0"
+def dsh_items(text):
+    """Top-level list items of a YAML block list (comments dropped), or None if
+    the text is not a block list starting at column 0."""
+    items, lines = [], [l for l in text.splitlines(True) if l.strip() and not l.lstrip().startswith("#")]
     for line in lines:
         if not line[0].isspace():
             if not line.startswith("-"):
-                return "not a YAML block list at column 0"
+                return None
             items.append(line)
+        elif not items:
+            return None
         else:
             items[-1] += line
+    return items
+
+
+def dsh_outside_problem(outside):
+    """Why text outside the managed block makes appending unsafe, or None. The file
+    must be a YAML block list starting at column 0, with no copies of our rows."""
+    items = dsh_items(outside)
+    if items is None:
+        return "not a YAML block list at column 0"
     for item in items:
         if DSH_ROW.search(item) and not DSH_OVERRIDE.match(item):
             return "pr-shepherd rows already exist outside the managed block"
@@ -115,7 +124,8 @@ def dsh_patch_record(dest, fragment):
         return record
     current = read_exact(dest) if dest.is_file() else ""
     nl = "\r\n" if "\r\n" in current else "\n"
-    block = nl.join([DSH_BEGIN, fragment.rstrip(), DSH_END]) + nl
+    body = fragment.rstrip().replace("\r\n", "\n").replace("\n", nl)
+    block = nl.join([DSH_BEGIN, body, DSH_END]) + nl
     begin, end = current.find(DSH_BEGIN), current.find(DSH_END)
     if current.count(DSH_BEGIN) == 1 and current.count(DSH_END) == 1 and begin < end:
         tail = current.index("\n", end) + 1 if "\n" in current[end:] else len(current)
@@ -126,6 +136,9 @@ def dsh_patch_record(dest, fragment):
         sep = nl if current and not current.endswith("\n") else ""
         outside, new = current, current + sep + block
     problem = "unpaired or duplicate pr-shepherd markers" if outside is None else dsh_outside_problem(outside)
+    before = current[:begin] if begin != -1 else current
+    if not problem and any(DSH_OVERRIDE.match(item) for item in dsh_items(before) or []):
+        problem = "an override of a pr-shepherd row comes before the managed block; dsh skips it, move it after the block"
     if problem:
         record.update(status="collision", error=problem, _text=None)
     else:

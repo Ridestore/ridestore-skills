@@ -48,7 +48,10 @@ python3 scripts/install.py --install --dsh-home ~/.dsh
   file that is not a YAML block list at column 0, or that already inserts these
   rows or tool names outside the block. Overriding a managed row by id after the
   block (`- id: pr-shepherd-flash` on its own line, then `disabled: true`) is
-  allowed; flow-style rows (`- {id: …}`) are treated as copies.
+  allowed; flow-style rows (`- {id: …}`) are treated as copies, and an override
+  placed before the block is refused (dsh would skip it).
+- To uninstall, delete the lines between the two markers (inclusive) and the
+  `<dsh-home>/skills/pr-shepherd` link.
 - The home patch applies to every profile, so both tools appear in every dsh
   session, not only pr-shepherd runs.
 - The installer does not read `$DSH_HOME`; if you set it, pass

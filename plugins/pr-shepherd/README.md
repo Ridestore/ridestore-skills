@@ -166,7 +166,8 @@ python3 plugins/pr-shepherd/skills/pr-shepherd/scripts/install.py --install --ds
   block between `# >>> pr-shepherd (managed by install.py) >>>` and
   `# <<< pr-shepherd <<<`. Re-running the installer updates only that block
   (atomically, keeping everything else byte for byte), and it refuses files it
-  can't append to safely. Because the home patch applies to every profile, the
+  can't append to safely. To uninstall, delete the block (markers included) and
+  the skill link. Because the home patch applies to every profile, the
   two tools appear in every dsh session. If you set `$DSH_HOME`, pass
   `--dsh-home "$DSH_HOME"`.
 
