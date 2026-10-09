@@ -19,12 +19,13 @@ REQUIRED = ("SKILL.md", "agents/openai.yaml", "scripts/install.py",
 
 
 # OpenCode fallback when neither OpenAI (GPT) nor Anthropic (Claude) is connected:
-# DeepSeek first, then GLM. Strong models go to the deep roles' agents.
+# DeepSeek first, then GLM. Flash everywhere; V4-Pro only for Remy+.
 OPENCODE_PROFILES = {
-    "deepseek": {"strong": "deepseek/deepseek-reasoner", "fast": "deepseek/deepseek-chat"},
-    "glm": {"strong": "zhipuai/glm-4.6", "fast": "zhipuai/glm-4.6"},
+    "deepseek": {"strong": "deepseek/deepseek-v4-pro", "fast": "deepseek/deepseek-flash"},
+    "glm": {"strong": "zhipuai/glm-5.3", "fast": "zhipuai/glm-5.3"},
 }
-STRONG_OPENCODE_AGENTS = {"pr-shepherd-opus", "pr-shepherd-astra", "pr-shepherd-luna-xhigh"}
+# Only sensitive security (Remy+, the astra agent) needs the stronger model.
+STRONG_OPENCODE_AGENTS = {"pr-shepherd-astra"}
 MANAGED_COPY = "# pr-shepherd-managed-copy"
 PROVIDER_ENV = {"openai": ["OPENAI_API_KEY"], "anthropic": ["ANTHROPIC_API_KEY"],
                 "deepseek": ["DEEPSEEK_API_KEY"], "glm": ["ZHIPU_API_KEY", "ZHIPUAI_API_KEY", "ZAI_API_KEY", "GLM_API_KEY"]}

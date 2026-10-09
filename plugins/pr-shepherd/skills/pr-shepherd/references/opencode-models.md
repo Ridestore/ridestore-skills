@@ -43,8 +43,8 @@ sections in `opencode.json(c)`):
 | Connected | Reviewer models |
 | --- | --- |
 | OpenAI (GPT) or Anthropic (Claude) | the table above, linked unchanged |
-| neither, but DeepSeek | `deepseek/deepseek-reasoner` for Maya, Zoe, Cleo, Remy+, Nora, Oscar, Iris and Vera (the opus, astra and luna-xhigh agents); `deepseek/deepseek-chat` for the rest |
-| none of those, but GLM (`zhipuai`/`zai`) | `zhipuai/glm-4.6` for every role |
+| neither, but DeepSeek | `deepseek/deepseek-flash` for every role except Remy+ (sensitive security), which uses `deepseek/deepseek-v4-pro` |
+| none of those, but GLM (`zhipuai`/`zai`) | `zhipuai/glm-5.3` for every role |
 | none of these | the table above, with a warning in the plan that providers are missing |
 
 For DeepSeek or GLM the installer writes marked copies of the agent files with
