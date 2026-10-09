@@ -175,10 +175,45 @@ def diff_events(diff_text, max_line=MAX_LINE):
 
 
 # Files that are binary by nature; any other file git shows as binary hides its lines.
-BINARY_ASSET = re.compile(r"\.(png|jpe?g|gif|webp|avif|ico|bmp|tiff?|heic|psd|ai|sketch|fig|woff2?|ttf|otf|eot|pdf|zip|gz|tgz|bz2|xz|7z|rar"
-                          r"|jar|war|wasm|mp3|mp4|m4a|wav|ogg|webm|mov|avi|mkv|db|sqlite3?|bin|exe|dll|so|dylib|a|o|pyc|class|lockb|keystore|p12)$", re.I)
+BINARY_ASSET = re.compile(
+    r"\.(png|jpe?g|gif|webp|avif|ico|icns|bmp|tiff?|heic|psd|ai|sketch|fig|woff2?|ttf|otf|eot|pdf|docx?|xlsx?|pptx?|odt|ods|odp|key|numbers|pages"
+    r"|zip|gz|tgz|bz2|xz|zst|7z|rar|tar|jar|war|apk|aab|ipa|dmg|iso|whl|gem|nupkg|node|tflite|ds_store|wasm|mp3|mp4|m4a|wav|flac|ogg|webm|mov|avi|mkv|glb|gltf|fbx|obj|stl"
+    r"|db|sqlite3?|parquet|avro|orc|feather|npy|npz|pkl|pickle|onnx|pt|h5|mo|bin|exe|dll|so|dylib|a|o|pyc|class|lockb)$", re.I)
+# Output that is hidden on purpose: lockfiles, minified bundles, maps, snapshots, generated code.
+HIDDEN_BY_DESIGN = re.compile(
+    r"(^|/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|Cargo\.lock|poetry\.lock|go\.sum)$|\.(min\.(js|css)|map|snap|lock)$"
+    r"|(^|/)(__generated__|generated|__snapshots__)/|\.generated\.|_pb2\.py$|\.pb\.go$|^((packages|apps|libs|services)/[^/]+/)?(dist|build|out)/", re.I)
 GITATTRIBUTES = re.compile(r"(^|/)\.gitattributes$")
-DIFF_ATTRIBUTE = re.compile(r"(?:^|\s)(?:-diff|binary|-text|diff=|filter=|merge=|textconv)\b")  # attributes that change what a diff shows
+# Attributes that never hide or collapse a file's lines; anything else (-diff,
+# binary, linguist-generated, a macro) can, now or in a later PR.
+HARMLESS_ATTRIBUTES = {"text", "eol", "crlf", "whitespace", "working-tree-encoding", "encoding", "export-ignore", "export-subst",
+                       "merge", "filter", "ident", "delta", "diff", "linguist-language", "linguist-detectable", "linguist-documentation"}
+KEY_FILE = re.compile(r"\.(p12|pfx|jks|keystore|pem|key|der|ppk)$|(^|/)id_(rsa|ed25519|ecdsa)$", re.I)  # committed keys and certificates
+
+
+def _hides_source(path):
+    """A file git shows as binary hides its lines unless it is an asset or output
+    hidden by design; under docs, tests and fixtures only source files count."""
+    if BINARY_ASSET.search(path) or HIDDEN_BY_DESIGN.search(path):
+        return False
+    return bool(_language(path)) if NOT_CODE_EXCEPT_SUFFIX.search(path) else True
+
+
+def _hides_lines(attribute_line):
+    """An added .gitattributes line that can hide or collapse source: any attribute
+    outside HARMLESS_ATTRIBUTES (or unsetting diff) on a pattern that is not an
+    asset suffix. `*.png binary` and LFS lines hide nothing worth reading."""
+    tokens = attribute_line.split()
+    if not tokens or tokens[0].startswith("#"):
+        return False
+    pattern, attributes = tokens[0], tokens[1:]
+    if not pattern.startswith("[attr]") and BINARY_ASSET.search(pattern.rstrip("/*")):
+        return False
+    for attribute in attributes:
+        name = attribute.lstrip("-!").split("=")[0]
+        if attribute in ("-diff", "!diff") or name not in HARMLESS_ATTRIBUTES:
+            return True
+    return False
 
 
 def _repo_signals(extra, flags=re.I):
@@ -193,17 +228,20 @@ def security_tier(diff_text, extra_signals=None):
     is not an auth change), otherwise 'remy'. Cross-service: signals in 2+ top-level dirs.
     Whole lines are scanned (the patterns are linear), deleted and renamed files
     count by path, and repository signals are added as 'repo: NAME', never
-    replacing a built-in one. A .gitattributes line that changes how files diff,
-    or a file git shows as binary that is not an image, font, archive or other
-    asset (its lines are hidden), also gives remy+."""
+    replacing a built-in one. A .gitattributes line that can hide source (-diff,
+    binary), a file git shows as binary that is not an asset or output hidden
+    by design (its lines are hidden), or a committed key or certificate file
+    also gives remy+."""
     signals = {name: re.compile(p, re.I | re.M) for name, p in SECURITY_SIGNALS.items()}
     signals.update(_repo_signals(extra_signals, re.I | re.M))
     matches = {}
     for kind, path, text in diff_events(diff_text, max_line=None):
-        if kind == "binary" and not BINARY_ASSET.search(path) and not SPECIALIST_SKIP.search(path):
+        if kind == "binary" and _hides_source(path):
             matches.setdefault("hidden source content", set()).add(path)  # a NUL byte or attributes hide the lines
-        if kind in ("add", "del") and GITATTRIBUTES.search(path) and DIFF_ATTRIBUTE.search(text):
+        if kind == "add" and GITATTRIBUTES.search(path) and _hides_lines(text):
             matches.setdefault("diff attributes", set()).add(path)
+        if kind == "file" and KEY_FILE.search(path):
+            matches.setdefault("key or certificate file", set()).add(path)
         if kind not in ("file", "add") or NOT_CODE.search(path):
             continue
         text = path if kind == "file" else text
@@ -275,7 +313,10 @@ PERFORMANCE_SIGNALS = {
 }
 MODULE_COLLECTION_JS = re.compile(r"^(?:export\s+)?(?:const|let|var)\s+\w+\s*(?::[^=]{1,120})?=\s*new\s+(?:Map|Set|WeakMap)\b")
 MODULE_COLLECTION_PY = re.compile(r"^[A-Za-z_]\w*\s*(?::\s*[\w\[\], |.]{1,120})?=\s*(?:\{\}|\[\]|dict\(\)|set\(\)|defaultdict\([^)]{0,80}\)|OrderedDict\(\))\s*(?:#.*)?$")
-LOOP_HEAD = re.compile(r"^\s*(?:async\s+)?(?:for(?:each)?|while)\b|\.(?:\w{0,20}each\w{0,20}|for_each|forEach|times|upto|step|map|flat_map|select|reject)\b[^\n]{0,80}(?:\bdo|\{|->\s*\{)\s*(?:\|[^|]{0,40}\|\s*)?$|^\s*(?:do|loop)\s*\{|\.(?:forEach|map|flatMap)\(\s*(?:async\b|\(?[\w\s,{}]{0,80}\)?\s*=>\s*\{\s*$)")
+LOOP_HEAD = re.compile(r"^\s*(?:async\s+)?(?:for(?:each)?|while)\b|\.(?:for_each|forEach)\b[^\n]{0,80}(?:\{|->\s*\{)\s*(?:\|[^|]{0,40}\|\s*)?$"
+    # Ruby iterators need a Ruby block (do ... or { |x| ...), so `if (checkout.step) {` is no loop.
+    r"|\.(?:(?:\w{1,20}_)?each(?:_\w{1,20}|[A-Z]\w{0,20})?|times|upto|step|map|flat_map|select|reject)\b[^\n]{0,80}"
+    r"(?:\bdo\s*(?:\|[^|]{0,40}\|)?|\{\s*\|[^|]{0,40}\|)\s*$|^\s*(?:do|loop)\s*\{|\.(?:forEach|map|flatMap)\(\s*(?:async\b|\(?[\w\s,{}]{0,80}\)?\s*=>\s*\{\s*$)")
 LOOP_COST = re.compile(_SQL + "|" + _ORM + "|" + _NET + r"|\bawait\b")
 LOOP_MAX = 40  # body lines followed after a loop header
 
@@ -288,9 +329,11 @@ COMPLEXITY_NESTED_LINES = 5   # added lines that deep in one file
 COMPLEXITY_LINES = re.compile(
     r"(?<![\w.$])(?:eval|exec)\s*\(|\bnew\s+Function\s*\(|\b(?:setattr|__getattr__|metaclass)\b|\bmonkeypatch\w*"
     r"|\bnew\s+Proxy\s*\(|@ts-ignore|@ts-nocheck|eslint-disable|#\s*type:\s*ignore|\bFIXME\b|\bHACK\b")
+STRINGS_AND_TRAILING_COMMENT = re.compile(r"'(?:[^'\\\n]|\\.){0,300}'|\"(?:[^\"\\\n]|\\.){0,300}\"|`[^`\n]{0,300}`|//.*$")
 COMMENT_LINE = re.compile(r"^\s*(?://|#|\*|/\*)")  # `any`/`global` in prose comments is not code
 TS_ANY = re.compile(r"(?:[:<,|=&\[]|=>|\bas\s|\bextends\s)\s*any(?=\s*(?:[,;)>=\]|&}{\[]|//|/\*|$)|\s+as\b)")  # an `any` type, not any(...) or prose
-TS_USING = re.compile(r"^\s*(?:export\s+)?using\s+\w+\s*=")  # TS 5.2 explicit resource management
+TS_USING = re.compile(r"^\s*using\s+\w+\s*(?::[^=]{1,80})?=")  # TS 5.2 explicit resource management
+CS_USING = re.compile(r"^\s*using\s*\(|^\s*using\s+[\w<>\[\].?]+\s+\w+\s*=")  # C# using statement or typed declaration
 PY_GLOBAL = re.compile(r"^\s*(?:global|nonlocal)\s+\w+(?:\s*,\s*\w+)*\s*(?:#.*)?$")
 
 LANGUAGES = {
@@ -359,7 +402,7 @@ LANGUAGE_LINES = {
         r"|\bimport\s+\w+\s*=\s*require\(", CASE_SENSITIVE),
     "error handling and resource cleanup": (
         r"\b(?:AggregateError|contextmanager|__enter__|__exit__|atexit|SIGTERM|SIGINT|SIGHUP|beforeExit)\b|\bSymbol\.(?:asyncDispose|dispose)\b"
-        r"|\bawait\s+using\b|\busing\s*\(|^\s*using\s+[\w<>\[\].?]+\s+\w+\s*=|^\s*defer\s+(?:func\b|[\w.]+\()|\brecover\(\)|\bpanic!?\(|\bsignal\.signal\(|\bprocess\.exit\(|\bprocess\.on\(\s*['\"](?:SIG\w+|exit|beforeExit)['\"]", CASE_SENSITIVE),
+        r"|\bawait\s+using\b|^\s*defer\s+(?:func\b|[\w.]+\()|\brecover\(\)|\bpanic!?\(|\bsignal\.signal\(|\bprocess\.exit\(|\bprocess\.on\(\s*['\"](?:SIG\w+|exit|beforeExit)['\"]", CASE_SENSITIVE),
 }
 # Module-format keys count only in package.json, not in translation or data JSON.
 PACKAGE_MODULE_KEYS = re.compile(r'^\s*"(?:exports|imports|main|module|browser)"\s*:|^\s*"type"\s*:\s*"(?:module|commonjs)"')
@@ -508,9 +551,10 @@ def specialist_signals(diff_text, extra=None):
                 hit("iris", name, path)
         if PACKAGE_JSON.search(path) and PACKAGE_MODULE_KEYS.search(text):
             hit("iris", "module system", path)
-        if lang == "JavaScript/TypeScript" and TS_USING.search(text):
+        if (lang == "JavaScript/TypeScript" and TS_USING.search(text)) or (lang == "C#" and CS_USING.search(text)):
             hit("iris", "error handling and resource cleanup", path)
-        if _is_source(lang) and (COMPLEXITY_LINES.search(text) or (lang == "JavaScript/TypeScript" and TS_ANY.search(text) and not COMMENT_LINE.match(text))
+        if _is_source(lang) and (COMPLEXITY_LINES.search(text) or (lang == "JavaScript/TypeScript" and not COMMENT_LINE.match(text)
+                                     and TS_ANY.search(STRINGS_AND_TRAILING_COMMENT.sub(" ", text)))
                                  or (lang == "Python" and PY_GLOBAL.search(text))):
             hit("oscar", "escape hatches and dynamic code", path)
         for role, signals in extra.items():
@@ -570,6 +614,21 @@ def git_diff(repo, old, new, attr_source):
     if proc.returncode != 0:
         raise SystemExit(f"git diff {' '.join(revs)} failed: {proc.stderr.decode('utf-8', 'replace').strip()}")
     return proc.stdout.decode("utf-8", "replace")
+
+
+def changed_files(repo, base, head):
+    """Changed paths for the manifest, exact: NUL-separated, so nothing is quoted;
+    a rename or copy lists its new name."""
+    proc = subprocess.run(["git", "-C", repo, "diff", "--no-color", "--name-status", "--find-renames", "-z", base, head],
+                          capture_output=True)
+    if proc.returncode != 0:
+        raise SystemExit(f"git diff --name-status failed: {proc.stderr.decode('utf-8', 'replace').strip()}")
+    fields, files, i = proc.stdout.decode("utf-8", "replace").split("\0"), [], 0
+    while i < len(fields) and fields[i]:
+        width = 3 if fields[i][:1] in "RC" else 2
+        files.append(fields[i + width - 1])
+        i += width
+    return files
 
 
 def read_diff(path):
@@ -732,14 +791,7 @@ def main(argv=None):
     diff_path = os.path.join(out, "diff.patch")
     with open(diff_path, "w", encoding="utf-8", newline="") as fh:
         fh.write(git_diff(repo, merge_base, head, merge_base))
-    # Exact names for the manifest list: NUL-separated, so no quoting at all.
-    status_fields = subprocess.run(["git", "-C", repo, "diff", "--no-color", "--name-status", "--find-renames", "-z", merge_base, head],
-                                   capture_output=True, check=True).stdout.decode("utf-8", "replace").split("\0")
-    files, i = [], 0
-    while i < len(status_fields) and status_fields[i]:
-        width = 3 if status_fields[i][:1] in "RC" else 2  # renames and copies list old and new names
-        files.append(status_fields[i + width - 1])
-        i += width
+    files = changed_files(repo, merge_base, head)
     fix_diff = None
     if args.previous_head:
         fix_diff = os.path.join(out, "fix-diff.patch")
