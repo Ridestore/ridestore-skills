@@ -1,6 +1,7 @@
 """Tests for the pr-shepherd helper scripts (standard library only)."""
 
 import json
+import re
 import os
 import subprocess
 import sys
@@ -206,6 +207,7 @@ class ReviewPacketTest(unittest.TestCase):
         ("oscar", "escape hatches and dynamic code", "src/a.ts", "export function load(): any {"),
         ("oscar", "escape hatches and dynamic code", "src/a.ts", "const f: () => any = g"),
         ("iris", "error handling and resource cleanup", "src/a.ts", "using file = openFile(p);"),
+        ("iris", "error handling and resource cleanup", "src/a.ts", "using res: Disposable = getRes();"),
         ("iris", "error handling and resource cleanup", "src/a.cs", "using (StreamReader r = new StreamReader(p)) {"),
         ("iris", "error handling and resource cleanup", "src/a.cs", "using FileStream f = File.Open(p);"),
         ("oscar", "escape hatches and dynamic code", "src/a.ts", "type Pair = [any, string]"),
@@ -273,6 +275,10 @@ class ReviewPacketTest(unittest.TestCase):
         ("web/A.tsx", '<input placeholder="Brand (any)" />'),
         ("web/A.tsx", "<p>Pick a size, any size works</p>"),
         ("src/a.ts", "const label = { title: 'Size: any' }"),
+        ("src/a.ts", "const q = sql`select * from a join b using (id)`"),
+        ("src/a.py", "# by using (for example) the store"),
+        ("src/a.ts", "const hint = 'Size: any, colour: any'"),
+        ("src/a.ts", "const n = 1 // returns: any"),
     ]
 
     def test_every_documented_signal_routes_its_role(self):
@@ -297,6 +303,11 @@ class ReviewPacketTest(unittest.TestCase):
         rb = "+++ b/app/a.rb\n@@ -0,0 +1,3 @@\n+ids.each do |id|\n+  Net::HTTP.get(uri)\n+end\n"
         self.assertIn(name, spec(rb).get("ruby", {}))
         self.assertIn(name, spec(rb.replace("ids.each do", "User.find_each do")).get("ruby", {}))
+        self.assertNotIn(name, spec(hunk("if (course.teacher) {", "  const u = await load(course.teacher.id)", "}")).get("ruby", {}))
+        self.assertNotIn(name, spec(hunk("if (checkout.step === 'payment') {", "  await createPaymentIntent(order)", "}")).get("ruby", {}))
+        self.assertNotIn(name, spec(hunk("if (quota.reached) {", "  await notify(user)", "}")).get("ruby", {}))
+        self.assertIn(name, spec("+++ b/app/a.rb\n@@ -0,0 +1,3 @@\n+3.times do |i|\n+  db.execute(sql)\n+end\n").get("ruby", {}))
+        self.assertNotIn(name, spec(hunk("return Promise.reject({", "  err: await describe(e),", "})")).get("ruby", {}))
         # After the loop has closed, or after a one-line .map, an await is sequential code.
         self.assertNotIn(name, spec(hunk("const ids = rows.map(r => r.id)", "await save(ids)")).get("ruby", {}))
         self.assertNotIn(name, spec(hunk("for (const x of xs) { total += x }", "const r = await load()")).get("ruby", {}))
@@ -424,6 +435,8 @@ class ReviewPacketTest(unittest.TestCase):
         crlf = "+++ b/src/a.py\n+REGISTRY = defaultdict(list)\r\n"
         self.assertIn("module-level collection", spec(crlf)["ruby"])
 
+    @unittest.skipIf(tuple(int(x) for x in re.findall(r"\d+", subprocess.run(["git", "--version"], capture_output=True, text=True).stdout)[:2]) < (2, 40),
+                     "--attr-source needs git 2.40+")
     def test_attributes_and_binary_markers_cannot_hide_source(self):
         write(os.path.join(self.repo, ".gitattributes"), "*.py -diff\n")
         write(os.path.join(self.repo, "src", "a.py"), "token = jwt.decode(t, verify=False)\n")
@@ -436,15 +449,25 @@ class ReviewPacketTest(unittest.TestCase):
         self.assertEqual(manifest["security"]["tier"], "remy+")
         self.assertIn("diff attributes", manifest["security"]["signals"])
         binary = lambda p: f"diff --git a/{p} b/{p}\nindex 1..2 100644\nBinary files a/{p} and b/{p} differ\n"
-        for path in ("src/x.ts", "web/index.html", "Dockerfile", "deploy/app.yaml"):
+        for path in ("src/x.ts", "web/index.html", "Dockerfile", "deploy/app.yaml", "e2e/global-setup.ts", "vendor/analytics.js",
+                     "conftest.py", "pkg/a_test.go"):
             with self.subTest(path=path):
                 self.assertIn("hidden source content", review_packet.security_tier(binary(path))[1])
-        for path in ("web/logo.png", "fonts/a.woff2", "dist/app.min.js", "src/generated/api.ts"):
+        for path in ("web/logo.png", "fonts/a.woff2", "dist/app.min.js", "src/generated/api.ts", "docs/spec.xlsx",
+                     "tests/fixtures/model.onnx", "data/sample.parquet"):
             with self.subTest(path=path):
                 self.assertNotIn("hidden source content", review_packet.security_tier(binary(path))[1])
         # Only attributes that change what a diff shows count.
-        self.assertEqual(review_packet.security_tier("+++ b/.gitattributes\n+* text=auto eol=lf\n")[0], "remy")
-        self.assertEqual(review_packet.security_tier("+++ b/.gitattributes\n+*.ts -diff\n")[0], "remy+")
+        for line in ("* text=auto eol=lf", "CHANGELOG.md merge=union", "*.psd filter=lfs diff=lfs merge=lfs -text",
+                     "*.png binary", "# binary files"):
+            with self.subTest(line=line):
+                self.assertEqual(review_packet.security_tier(f"+++ b/.gitattributes\n+{line}\n")[0], "remy")
+        self.assertIn("key or certificate file", review_packet.security_tier(
+            "diff --git a/certs/client.p12 b/certs/client.p12\nnew file mode 100644\nBinary files /dev/null and b/certs/client.p12 differ\n")[1])
+        for line in ("*.ts -diff", "src/payments/** linguist-generated=true", "src/payments/*.ts opaque", "[attr]opaque -diff"):
+            with self.subTest(line=line):
+                self.assertEqual(review_packet.security_tier(f"+++ b/.gitattributes\n+{line}\n")[0], "remy+")
+        self.assertEqual(review_packet.security_tier("+++ b/.gitattributes\n-*.ts -diff\n")[0], "remy")
         # A fix check reads attributes from the merge base too.
         head = subprocess.run(["git", "-C", self.repo, "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
         write(os.path.join(self.repo, "src", "a.py"), "token = jwt.decode(t, verify=False)\nresp = requests.get(url)\n")

@@ -61,16 +61,17 @@ IAM, Dockerfile `USER`, security groups), production commerce APIs (the
 commercetools SDK or API), payments (Stripe, Adyen, Klarna, PayPal, payment
 intents/methods/providers, refunds), personal data where it is stored or queried
 (email, phone, address, birth date in migrations, schemas, models or SQL/ORM
-writes), a `.gitattributes` line that changes how files diff, a file git shows
-as binary that is not an image, font, archive or other asset (its lines are
-hidden), or when security-relevant changes span two or more top-level packages.
-Repository instructions can add their own production API clients as
-`--security-signal NAME=REGEX` (recorded as `repo: NAME`; it adds, never
-replaces). Otherwise routine Remy (input validation, sanitization or injection
-checks in one component, dependency bumps, sensitive logging). When unsure, use
-Remy+. The coordinator may raise routine to Remy+ with a stated reason, never
-lower a detected Remy+, and names the decision and its matches in the plan and
-the PR body.
+writes), an added `.gitattributes` line that can hide or collapse source
+(`-diff`, `binary`, `linguist-generated`, a macro), a file git shows as binary
+that is not an asset or output hidden by design (its lines are hidden), a
+committed key or certificate file, or when security-relevant changes span two or
+more top-level packages. Repository instructions can add their own production
+API clients as `--security-signal NAME=REGEX` (recorded as `repo: NAME`; it
+adds, never replaces). Otherwise routine Remy (input validation, sanitization or
+injection checks in one component, dependency bumps, sensitive logging). When
+unsure, use Remy+. The coordinator may raise routine to Remy+ with a stated
+reason, never lower a detected Remy+, and names the decision and its matches in
+the plan and the PR body.
 
 **Ruby, Oscar and Iris are also routed by signals, not by judgement.**
 `review_packet.py` adds each one to the plan when the change under review (the

@@ -20,10 +20,11 @@
   to 2,000 characters and every pattern is bounded, so a minified line cannot
   stall the script; security signals still scan whole lines. Both the full and
   the fix diff read attributes from the merge base (`--attr-source`, git
-  2.40+), so a `.gitattributes` added by the PR cannot hide its own lines. A
-  `.gitattributes` line that changes how files diff (`-diff`, `binary`,
-  `diff=`, `filter=`, …), or a file git still shows as binary that is not an
-  image, font, archive or other asset, routes Remy+.
+  2.40+), so a `.gitattributes` added by the PR cannot hide its own lines. An
+  added `.gitattributes` line that can hide or collapse source (`-diff`,
+  `binary`, `linguist-generated`, a macro), a file git still shows as binary
+  that is not an asset or output hidden by design, and a committed key or
+  certificate file route Remy+.
 - Repository signals (`--security-signal` and `--specialist-signal`) are
   recorded as `repo: NAME`: they add to the built-in signals and can no longer
   replace or switch one off. An invalid regex stops with the offending item.
