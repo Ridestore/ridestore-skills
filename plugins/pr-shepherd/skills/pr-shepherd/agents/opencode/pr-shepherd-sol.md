@@ -1,8 +1,8 @@
 ---
-description: Independent read-only code review on pinned GPT-6.1 Sol at high effort; assign the concrete role and frozen review packet in the invocation.
+description: Independent read-only code review on pinned GPT-6.1 Sol at medium effort; assign the concrete role and frozen review packet in the invocation.
 mode: subagent
 model: openai/gpt-6.1-sol
-reasoningEffort: high
+reasoningEffort: medium
 permission:
   edit: deny
   bash: deny
