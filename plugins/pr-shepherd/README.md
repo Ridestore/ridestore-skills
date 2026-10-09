@@ -73,7 +73,7 @@ It never merges or deploys unless you say so separately.
 | Runtime | How reviewers run |
 | --- | --- |
 | Claude Code | Four native subagents shipped with the plugin, limited to Read/Grep/Glob: `opus-reviewer` and `sonnet-reviewer` (`claude-opus-5-5` / `claude-sonnet-5-5` at high) for most roles, and `opus-reviewer-xhigh` / `sonnet-reviewer-xhigh` at xhigh for types, code quality, language and verification, matching the Codex matrix. As a plugin they appear as `pr-shepherd:opus-reviewer` and so on. |
-| Codex | Native Codex subagents: mostly `gpt-6.1-sol` at high effort, `gpt-6-luna` at xhigh for types, code quality, language and verification, `gpt-6-astra` at medium for security. |
+| Codex | Native Codex subagents: mostly `gpt-6.1-sol` at high effort, `gpt-6-luna` at xhigh for types, code quality, language and verification, `gpt-6-astra` at medium only for sensitive security changes (auth, permissions, trust boundaries, secrets, infra, cross-service), chosen from signals in the diff; routine security checks run on Sol at high. |
 | OpenCode | Four subagents in `agents/opencode/` with mixed providers: Maya, Zoe and Cleo on Claude Opus 5.5, everything else on the Codex models above, so Felix's independent pass runs on a different model family than Maya's. Not yet verified at runtime. Parallel reviewers need `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true`. |
 
 Full role-to-model tables:

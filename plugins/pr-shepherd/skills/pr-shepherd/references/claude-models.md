@@ -20,7 +20,8 @@ choices take precedence. Keep the current coordinator and its reasoning setting.
 | Nora — types | `claude-sonnet-5-5` | xhigh | sonnet-reviewer-xhigh |
 | Jasper — comments and intent | `claude-sonnet-5-5` | high | sonnet-reviewer |
 | Felix — independent reviewer | `claude-opus-5-5` | high | opus-reviewer |
-| Remy — security | `claude-opus-5-5` | high | opus-reviewer |
+| Remy — security, routine | `claude-opus-5-5` | high | opus-reviewer |
+| Remy+ — security: auth, permissions, trust boundaries, secrets, infra, cross-service | `claude-opus-5-5` | xhigh | opus-reviewer-xhigh |
 | Ruby — performance | `claude-sonnet-5-5` | high | sonnet-reviewer |
 | Oscar — code quality | `claude-sonnet-5-5` | xhigh | sonnet-reviewer-xhigh |
 | Iris — language | `claude-sonnet-5-5` | xhigh | sonnet-reviewer-xhigh |

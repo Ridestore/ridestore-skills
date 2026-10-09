@@ -32,6 +32,47 @@ RESULT_SCHEMA = """{"role":"<role>","head":"<head sha>","base":"<merge-base sha>
  "limitations":[]}"""
 
 
+# Security signals that send Remy to the stronger row (Remy+). Specific forms on
+# purpose: plain "token" or "policy" also mean LLM tokens or config policy.
+SECURITY_SIGNALS = {
+    "authentication": r"\b(auth|authn|authenticat[a-z_]*|auth[_-][a-z_]+|login|logout|session[_-]?(id|token|cookie|secret|store)|set-cookie|cookies?|jwt|oauth[a-z0-9_]*|access[_-]?tokens?|refresh[_-]?tokens?|bearer|passw(or)?d[a-z_]*|mfa|2fa|totp)\b",
+    "authorization": r"\b(permissions?|rbac|acls?|authori[sz][a-z_]*|is_?admin|has_?role|require_?role|row[ _-]level[ _-]security|create policy)\b",
+    "trust boundary": r"\b(webhooks?|hmac|signatures?|verify_?signature|cors|csrf|x-hub-signature|ingress|api[_-]?gateway)\b",
+    "secrets and crypto": r"\b(secrets?|api[_-]?keys?|private[_-]?keys?|encrypt[a-z_]*|decrypt[a-z_]*|kms|bcrypt|argon2|scrypt)\b",
+    "infra permissions": r"(^|\s)(permissions:|secrets\.)|\b(iam|assume_?role|security_?groups?)\b|^\+?\s*USER\s",
+}
+
+
+NOT_CODE = re.compile(r"(\.(md|mdx|txt|rst)$|(^|/)(docs?|tests?|__tests__|fixtures)/|\.(test|spec)\.[a-z]+$|(^|/)test_[^/]+$)", re.I)
+
+
+def security_tier(diff_text):
+    """'remy+' with its matches when a security signal appears in a changed code or
+    config path or added line (docs, tests and fixtures are ignored: prose about auth
+    is not an auth change), otherwise 'remy'. Cross-service: signals in 2+ top-level dirs."""
+    matches, current = {}, None
+    for line in diff_text.splitlines():
+        if line.startswith("+++ "):
+            current = line[6:] if line.startswith("+++ b/") else None
+            if current and NOT_CODE.search(current):
+                current = None
+            texts = [current] if current else []
+        elif line.startswith("+") and current:
+            texts = [line[1:]]
+        else:
+            continue
+        for text in texts:
+            for name, pattern in SECURITY_SIGNALS.items():
+                if re.search(pattern, text, re.I | re.M):
+                    matches.setdefault(name, set()).add(current)
+    files = {f for fs in matches.values() for f in fs}
+    tops = {f.split("/")[0] for f in files if "/" in f}
+    if len(tops) >= 2:
+        matches["cross-service"] = set(sorted(files)[:5])
+    found = {k: sorted(v)[:5] for k, v in matches.items()}
+    return ("remy+" if found else "remy"), found
+
+
 def git(repo, *args, check=True):
     proc = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True)
     if check and proc.returncode != 0:
@@ -181,6 +222,7 @@ def main(argv=None):
     if unknown:
         raise SystemExit(f"unknown roles {unknown}; known: {sorted(roles_info)}")
 
+    tier, signals = security_tier(open(diff_path, encoding="utf-8").read())
     criteria = args.criteria or ""
     if criteria and os.path.isfile(criteria):
         criteria = open(criteria, encoding="utf-8").read().strip()
@@ -190,7 +232,8 @@ def main(argv=None):
         "repo": repo, "repo_name": os.path.basename(repo), "base_ref": args.base, "tip": tip,
         "merge_base": merge_base, "head": head, "tree": tree, "previous_head": args.previous_head,
         "files": files, "instructions": instructions, "runtime": args.runtime,
-        "roles": {r: {**roles_info[r], **matrix.get(r, {})} for r in wanted},
+        "roles": {r: {**roles_info[r], **matrix.get(tier if r == "remy" else r, {})} for r in wanted},
+        "security": {"tier": tier, "signals": signals},
         "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
     }
     manifest_path = os.path.join(out, "manifest.json")
@@ -206,6 +249,9 @@ def main(argv=None):
             fh.write("No --stale patterns given. Add the old values this change replaces.\n")
         for pattern, hits in stale.items():
             fh.write(f"- `{pattern}`: {len(hits)} match(es)\n" + "".join(f"  - {h}\n" for h in hits))
+        fh.write(f"\n## Security reviewer\n\nRemy uses the `{tier}` row"
+                 + (": " + "; ".join(f"{k} ({', '.join(v)})" for k, v in signals.items()) if signals else
+                    " (no authentication, authorization, trust-boundary, secrets or infra signal)") + ".\n")
         fh.write("\n## Instruction files to satisfy\n\n" + ("".join(f"- {p}\n" for p in instructions) or "- none\n"))
         fh.write(f"\n## Changed files: {len(files)} ({len(docs_changed)} Markdown)\n\n")
         fh.write("Before dispatch: are required docs updated, do logs/journals report what is actually sent, "
@@ -219,7 +265,8 @@ def main(argv=None):
 
     print(json.dumps({"out": out, "head": head, "tree": tree, "tip": tip, "merge_base": merge_base,
                       "files": len(files), "stale_matches": {p: len(h) for p, h in stale.items()},
-                      "roles": {r: matrix.get(r) for r in wanted}}, indent=2))
+                      "security": {"tier": tier, "signals": signals},
+                      "roles": {r: matrix.get(tier if r == "remy" else r) for r in wanted}}, indent=2))
     return 1 if any(stale.values()) else 0
 
 
