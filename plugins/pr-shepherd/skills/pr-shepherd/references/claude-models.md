@@ -1,10 +1,11 @@
 # Claude Code role/model matrix
 
 Matrix revision: 2026-10-09 (skill 2.4.0), speed profile.
-Last verified: 2026-10-09 — `sonnet-reviewer` (effort high) and
-`opus-reviewer-medium` (Maya and Theo) ran as native read-only reviewers on
-real PR reviews and returned complete results (observed response model not
-captured). `sonnet-reviewer-medium` is new in 2.4.0 and not yet runtime-verified.
+Last verified: 2026-10-09 — on the local review of skill 2.4.0 (Claude Code
+2.1.295), `opus-reviewer-medium` ran Maya (132k tokens, 3.9 min; recheck 74k,
+1.8 min) and Theo (184k, 4.7 min), and `sonnet-reviewer` (effort high) ran the
+merged Finn+Jasper call (146k, 4.1 min; recheck 109k, 2.2 min), all returning
+complete results (observed response model not captured). `sonnet-reviewer-medium` is new in 2.4.0 and not yet runtime-verified.
 Check with `python3 scripts/check_matrix.py` (definitions, pins, verification age).
 
 Use native Claude subagents; no hidden Codex/OpenAI fallback. Explicit user model

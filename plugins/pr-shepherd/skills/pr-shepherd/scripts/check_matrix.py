@@ -5,9 +5,12 @@
   pins the same model and effort as the table;
 - every agents/*-reviewer*.md definition is used by the table (and, with
   --plugin-manifest, registered in the plugin's `agents` list);
+- every agents/opencode/*.md agent is used by references/opencode-models.md with
+  the same model and effort;
 - every dsh tool named in references/dsh-models.md is a row of
   agents/dsh/cordis.patch.yml with the same model and effort, DeepSeek only,
-  read-only tools and depth 1;
+  read-only tools, depth 1, a unique toolName, an effort DeepSeek accepts
+  (off/low/high/max) and no model selection;
 - every matrix carries a `Last verified: YYYY-MM-DD` line; one older than
   --max-age-days is reported (an error with --strict).
 
