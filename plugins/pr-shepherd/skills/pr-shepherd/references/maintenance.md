@@ -31,7 +31,11 @@ Defaults: `~/.agents/skills/pr-shepherd` for Codex (pass `--codex-root
 Claude, and one link per `agents/*-reviewer*.md` under `~/.claude/agents`.
 For OpenCode add `--opencode-root ~/.config/opencode/agents` to link
 `agents/opencode/*.md`; the remote skill index delivers the skill text but
-cannot register agents, so OpenCode reviewers always need this step. Every
+cannot register agents, so OpenCode reviewers always need this step. For
+DeepSeek Harness add `--dsh-home ~/.dsh` (or `$DSH_HOME`): it links the skill to
+`<dsh-home>/skills` and keeps the reviewer tools from `agents/dsh/cordis.patch.yml`
+in a marked block of `<dsh-home>/cordis.patch.yml`, leaving the rest of that
+file alone ([dsh matrix](dsh-models.md)). Every
 root can be explicit, and `--source` picks another complete package. The
 installer fetches nothing, is idempotent, and refuses to overwrite files or
 links it did not create; reconcile a collision by hand.

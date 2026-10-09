@@ -2,7 +2,7 @@
   "skills": [
     {
       "name": "pr-shepherd",
-      "version": "2.3.1",
+      "version": "2.4.0",
       "files": [
         "SKILL.md",
         "agents/openai.yaml",
@@ -11,14 +11,16 @@
         "agents/opus-reviewer.md",
         "agents/sonnet-reviewer-xhigh.md",
         "agents/sonnet-reviewer.md",
-        "agents/opencode/pr-shepherd-astra.md",
+        "agents/dsh/cordis.patch.yml",
         "agents/opencode/pr-shepherd-luna-xhigh.md",
         "agents/opencode/pr-shepherd-opus.md",
         "agents/opencode/pr-shepherd-sol-medium.md",
+        "agents/opencode/pr-shepherd-sol-xhigh.md",
         "agents/opencode/pr-shepherd-sol.md",
         "references/attestation.md",
         "references/claude-models.md",
         "references/codex-models.md",
+        "references/dsh-models.md",
         "references/local-review.md",
         "references/maintenance.md",
         "references/opencode-models.md",

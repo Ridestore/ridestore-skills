@@ -123,7 +123,7 @@ def load_matrix(runtime):
     matrix = {}
     for cells in table_rows(path):
         for name in role_names(cells[0]):
-            if runtime in ("claude", "opencode") and len(cells) >= 4:
+            if runtime in ("claude", "opencode", "dsh") and len(cells) >= 4:
                 matrix[name] = {"model": cells[1].strip("`"), "effort": cells[2], "definition": cells[3]}
             elif runtime == "codex" and len(cells) >= 3:
                 matrix[name] = {"model": cells[1].strip("`"), "effort": cells[2]}
@@ -195,7 +195,7 @@ def main(argv=None):
     ap.add_argument("--base", default="origin/main", help="target ref (default origin/main)")
     ap.add_argument("--fetch", action="store_true", help="fetch the target branch first")
     ap.add_argument("--roles", required=True, help="comma-separated role names, e.g. finn,maya,felix")
-    ap.add_argument("--runtime", choices=["claude", "codex", "opencode"], required=True)
+    ap.add_argument("--runtime", choices=["claude", "codex", "opencode", "dsh"], required=True)
     ap.add_argument("--criteria", help="acceptance criteria text, or a path to a file holding them")
     ap.add_argument("--stale", action="append", default=[], help="regex that must no longer appear at head (repeatable)")
     ap.add_argument("--security-signal", action="append", default=[], metavar="NAME=REGEX",

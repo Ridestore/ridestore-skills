@@ -2,7 +2,7 @@
 name: pr-shepherd
 description: Deliver a coding task as a normal, non-draft pull request that has passed a local multi-agent review before the first push, then follow up on review threads and CI. Use for /pr-shepherd, $pr-shepherd, or a request to implement a change and open a locally reviewed PR.
 metadata:
-  version: "2.3.1"
+  version: "2.4.0"
   updated: "2026-10-09"
 ---
 
@@ -13,8 +13,8 @@ head passed the local review below **before the first push**. Never merge or
 deploy unless separately authorized.
 
 Invocation: `/pr-shepherd <request>` in Claude Code (`/pr-shepherd:pr-shepherd`
-as a plugin), `$pr-shepherd <request>` in Codex, the skill tool in OpenCode, or a
-plain request naming this workflow; no second confirmation is needed.
+as a plugin), `$pr-shepherd <request>` in Codex, the skill tool in OpenCode or
+DeepSeek Harness (dsh), or a plain request naming this workflow; no second confirmation is needed.
 
 At activation, show the skill version, runtime and a short plan, and keep it
 visible: implementation → validation → self-check → local review → fixes/recheck
@@ -22,8 +22,8 @@ visible: implementation → validation → self-check → local review → fixes
 
 **Read when needed:** [local review](references/local-review.md) and
 [roles](references/roles.md) before reviewing; the current runtime's matrix only
-([Claude](references/claude-models.md), [Codex](references/codex-models.md) or
-[OpenCode](references/opencode-models.md));
+([Claude](references/claude-models.md), [Codex](references/codex-models.md),
+[OpenCode](references/opencode-models.md) or [dsh](references/dsh-models.md));
 [post-PR](references/post-pr.md) after publishing;
 [attestation](references/attestation.md) only if configured;
 [workspaces](references/workspaces.md) for isolation;

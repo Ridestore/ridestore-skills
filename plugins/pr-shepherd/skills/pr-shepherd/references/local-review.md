@@ -10,7 +10,7 @@ pushing) and build the packet:
 
 ```sh
 python3 <skill>/scripts/review_packet.py --repo <task tree> --base origin/main --fetch \
-  --runtime claude|codex|opencode --roles finn,maya,nora,felix \
+  --runtime claude|codex|opencode|dsh --roles finn,maya,nora,felix \
   --criteria <file or text> --stale '<old value>' --stale '<old id>'
 ```
 

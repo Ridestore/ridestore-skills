@@ -6,7 +6,8 @@ agents check the change **before the first push**. The agent fixes every
 confirmed finding, opens the PR with the review evidence, then comes back to
 handle review threads and CI.
 
-It works in any GitHub repository, in **Claude Code**, **Codex** and **OpenCode**.
+It works in any GitHub repository, in **Claude Code**, **Codex**, **OpenCode**
+and **DeepSeek Harness** (`dsh`).
 
 ## Usage
 
@@ -14,6 +15,7 @@ It works in any GitHub repository, in **Claude Code**, **Codex** and **OpenCode*
 /pr-shepherd:pr-shepherd <what to do>     # Claude Code, plugin install
 /pr-shepherd <what to do>                 # Claude Code, skill linked directly
 $pr-shepherd <what to do>                 # Codex
+/pr-shepherd <what to do>                 # DeepSeek Harness
 ```
 
 A plain request that asks for this workflow also triggers it.
@@ -75,11 +77,13 @@ It never merges or deploys unless you say so separately.
 | Claude Code | Five native subagents shipped with the plugin, limited to Read/Grep/Glob: `opus-reviewer-medium` (Opus at medium) for Maya and Theo, `opus-reviewer` and `sonnet-reviewer` (`claude-opus-5-5` / `claude-sonnet-5-5` at high) for most other roles, and `opus-reviewer-xhigh` / `sonnet-reviewer-xhigh` at xhigh for types, code quality, language and verification, matching the Codex matrix. As a plugin they appear as `pr-shepherd:opus-reviewer` and so on. |
 | Codex | Native Codex subagents: mostly `gpt-6.1-sol` at high effort (Maya and Theo at medium), `gpt-6-luna` at xhigh for types, code quality, language and verification, Sol at xhigh for sensitive security changes (auth, permissions, trust boundaries, secrets, infra, cross-service), chosen from signals in the diff; routine security checks run on Sol at high. |
 | OpenCode | Five subagents in `agents/opencode/` with mixed providers: Maya, Zoe and Cleo on Claude Opus 5.5, everything else on the Codex models above, so Felix's independent pass runs on a different model family than Maya's. Without GPT or Claude connected, the installer switches the agents to DeepSeek Flash or else GLM-5.3 for every role. Not yet verified at runtime. Parallel reviewers need `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true`. |
+| DeepSeek Harness (`dsh`) | DeepSeek only: two read-only delegation tools added to dsh's home patch, both on `deepseek-flash` — `pr_shepherd_flash` (effort high) for most roles and `pr_shepherd_flash_max` (effort max) for types, code quality, language, verification and sensitive security. One model family, so Felix's pass is not cross-family. Not yet verified at runtime. See [DeepSeek Harness](#deepseek-harness-dsh). |
 
 Full role-to-model tables:
 [`claude-models.md`](skills/pr-shepherd/references/claude-models.md),
 [`codex-models.md`](skills/pr-shepherd/references/codex-models.md),
-[`opencode-models.md`](skills/pr-shepherd/references/opencode-models.md). Each one has a
+[`opencode-models.md`](skills/pr-shepherd/references/opencode-models.md),
+[`dsh-models.md`](skills/pr-shepherd/references/dsh-models.md). Each one has a
 **Last verified** line saying which combinations actually ran and when;
 `scripts/check_matrix.py` checks the definitions against the tables and warns
 when a matrix hasn't been verified for 60 days.
@@ -123,6 +127,8 @@ python3 plugins/pr-shepherd/skills/pr-shepherd/scripts/install.py --install \
   --opencode-root ~/.config/opencode/agents
 ```
 
+DeepSeek Harness: see [below](#deepseek-harness-dsh).
+
 Updates: see the [repository README](../../README.md#install).
 
 If you work on the skill itself, don't install the plugin. Clone this repository
@@ -140,6 +146,52 @@ overwrite anything it didn't create. Don't combine it with the plugin in the
 same runtime, or everything is registered twice. Details are in
 [`maintenance.md`](skills/pr-shepherd/references/maintenance.md).
 
+## DeepSeek Harness (dsh)
+
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`npm i -g
+@deepseek-ai/dsh`, Node 22 or newer) runs the reviewers on DeepSeek models only.
+It has no plugin marketplace for this repository, so install from a clone:
+
+```sh
+python3 plugins/pr-shepherd/skills/pr-shepherd/scripts/install.py --install --dsh-home ~/.dsh
+```
+
+- **Skill:** linked to `~/.dsh/skills/pr-shepherd`. dsh also reads
+  `~/.agents/skills`, so a Codex link there works too.
+- **Reviewers:** dsh has no subagent definition files. Instead, each reviewer
+  type is a `@deepseek-ai/dsh-tool-subagent` row with its own tool name, pinned
+  model and effort. The installer appends the rows from
+  [`agents/dsh/cordis.patch.yml`](skills/pr-shepherd/agents/dsh/cordis.patch.yml)
+  to `~/.dsh/cordis.patch.yml`, which every dsh profile applies. They go in a
+  block between `# >>> pr-shepherd (managed by install.py) >>>` and
+  `# <<< pr-shepherd <<<`. Re-running the installer updates only that block,
+  and it refuses files it can't append to safely.
+
+  | Tool | Model | Effort | Roles |
+  | --- | --- | --- | --- |
+  | `pr_shepherd_flash` | `deepseek-flash` (V4.1 Flash) | high | Finn, Maya, Theo, Jasper, Felix, Remy, Ruby, Zoe, Cleo, Otis, Milo, Luna |
+  | `pr_shepherd_flash_max` | `deepseek-flash` | max | Nora, Oscar, Iris, Vera, Remy+ |
+
+  DeepSeek's efforts are `off`, `low`, `high` and `max`. Roles at medium or high
+  on the other runtimes use `high`; roles at xhigh use `max`.
+- **Read-only:** both tools allow only `read`, `grep` and `glob`, cap delegation
+  depth at 1 (reviewers can't start agents), and inherit dsh's `never` approval
+  policy for children.
+- **Credentials:** the `deepseek-official` provider reads `DEEPSEEK_API_KEY`
+  from the environment, `~/.dsh/.credentials.yaml` or `.env`.
+- **Limits:**
+  - At most 8 reviewers run at once per session (`maxActiveSubagents`), so the
+    coordinator starts them in waves.
+  - The web `minimal` preset has no read/grep/glob tools; use `standard` or
+    `dsh --profile headless`.
+  - `dsh web` reloads the patch live; restart other profiles after installing.
+- **Check without running a model:** `dsh --profile headless --dump-config`
+  shows the composed tools.
+
+Written against dsh 0.2.0-rc.2 and the 0.2.1 alpha source; not yet verified with
+a real review. Run one and update the "Last verified" line in
+[`dsh-models.md`](skills/pr-shepherd/references/dsh-models.md).
+
 ## Files
 
 ```
@@ -148,12 +200,14 @@ skills/pr-shepherd/
   agents/openai.yaml          Codex skill metadata
   agents/*-reviewer*.md       the five Claude reviewer definitions (medium, high and xhigh)
   agents/opencode/*.md        the five OpenCode reviewer agents (mixed providers)
+  agents/dsh/cordis.patch.yml the two DeepSeek Harness reviewer tools (DeepSeek Flash)
   references/
     local-review.md           freezing the snapshot, review packet, fix loop, pass gate
     roles.md                  roles, what each leaves to others, Basic / Standard / Deep routing
     claude-models.md          Claude role-to-model matrix
     codex-models.md           Codex role-to-model matrix
     opencode-models.md        OpenCode role-to-model matrix and dispatch notes
+    dsh-models.md             DeepSeek Harness role-to-model matrix, install and dispatch notes
     progress.md               visible progress while agents run
     post-pr.md                follow-up on threads and checks after the PR
     attestation.md            optional marker + label for review automation
@@ -163,7 +217,7 @@ skills/pr-shepherd/
     review_packet.py          freeze the snapshot, self-check, write per-role prompts
     merge_findings.py         merge reviewer replies, group duplicates, pass-gate summary
     check_matrix.py           definitions vs matrix tables, "last verified" age
-    install.py                link installer for development copies
+    install.py                link installer (Claude, Codex, OpenCode agents, dsh tools)
 tests/test_scripts.py         tests for the scripts (run in CI)
 evals/                        `claude plugin eval` cases: no push before review,
                               prose exemption, no attestation when incomplete,

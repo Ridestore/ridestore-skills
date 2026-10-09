@@ -5,7 +5,10 @@
   pins the same model and effort as the table;
 - every agents/*-reviewer*.md definition is used by the table (and, with
   --plugin-manifest, registered in the plugin's `agents` list);
-- both matrices carry a `Last verified: YYYY-MM-DD` line; one older than
+- every dsh tool named in references/dsh-models.md is a row of
+  agents/dsh/cordis.patch.yml with the same model and effort, DeepSeek only,
+  read-only tools and depth 1;
+- every matrix carries a `Last verified: YYYY-MM-DD` line; one older than
   --max-age-days is reported (an error with --strict).
 
 Exit 1 on any mismatch, or on stale verification with --strict.
@@ -37,6 +40,17 @@ def frontmatter(path):
     text = open(path, encoding="utf-8").read()
     m = re.match(r"^---\n(.*?)\n---", text, re.S)
     return dict(re.findall(r"^(\w+):\s*(.+)$", m.group(1), re.M)) if m else {}
+
+
+def dsh_tools(path):
+    """toolName -> settings of each pr-shepherd row in the dsh patch fragment."""
+    tools = {}
+    for block in re.split(r"^\s*- id: ", open(path, encoding="utf-8").read(), flags=re.M)[1:]:
+        get = lambda key: (re.search(r"^\s*" + key + r":\s*(.+)$", block, re.M) or [None, None])[1]
+        tools[get("toolName")] = {"model": get("model"), "effort": get("reasoningEffort"),
+                                  "llm": re.findall(r"^\s+provider:\s*(\S+)", block, re.M),
+                                  "allow": get("allow"), "depth": get("maxDepth")}
+    return tools
 
 
 def last_verified(path):
@@ -94,6 +108,28 @@ def main(argv=None):
         if os.path.basename(path)[:-3] not in oc_used:
             errors.append(f"agents/opencode/{os.path.basename(path)} is not used by references/opencode-models.md")
 
+    patch = os.path.join(args.skill_dir, "agents", "dsh", "cordis.patch.yml")
+    tools = dsh_tools(patch) if os.path.isfile(patch) else {}
+    dsh_used = set()
+    for cells in table_rows(os.path.join(refs, "dsh-models.md")):
+        if len(cells) < 4 or not re.fullmatch(r"[a-z0-9_]+", cells[3]):
+            continue
+        name, model, effort = cells[3], cells[1].strip("`"), cells[2]
+        dsh_used.add(name)
+        tool = tools.get(name)
+        if not tool:
+            errors.append(f"dsh {cells[0]}: tool {name} not found in agents/dsh/cordis.patch.yml")
+            continue
+        if (tool["model"], tool["effort"]) != (model, effort):
+            errors.append(f"dsh {cells[0]}: table pins {model}/{effort}, {name} pins {tool['model']}/{tool['effort']}")
+    for name, tool in sorted(tools.items()):
+        if name not in dsh_used:
+            errors.append(f"agents/dsh/cordis.patch.yml: {name} is not used by references/dsh-models.md")
+        if tool["llm"] != ["spawn", "deepseek-official"] or not str(tool["model"]).startswith("deepseek-"):
+            errors.append(f"agents/dsh/cordis.patch.yml: {name} must use the spawn provider and a deepseek-official model")
+        if tool["allow"] != "[read, grep, glob]" or tool["depth"] != "1":
+            errors.append(f"agents/dsh/cordis.patch.yml: {name} must allow only [read, grep, glob] at maxDepth 1")
+
     defined = {os.path.basename(p)[:-3] for p in glob.glob(os.path.join(args.skill_dir, "agents", "*-reviewer*.md"))}
     for name in sorted(defined - used):
         errors.append(f"agents/{name}.md is not used by references/claude-models.md")
@@ -103,7 +139,7 @@ def main(argv=None):
             errors.append(f"{args.plugin_manifest}: agents list misses {name}")
 
     today = datetime.date.fromisoformat(args.today) if args.today else datetime.date.today()
-    for matrix in ("claude-models.md", "codex-models.md", "opencode-models.md"):
+    for matrix in ("claude-models.md", "codex-models.md", "opencode-models.md", "dsh-models.md"):
         text = open(os.path.join(refs, matrix), encoding="utf-8").read()
         date = last_verified(os.path.join(refs, matrix))
         if not date and re.search(r"Last verified:\s*not yet", text):
