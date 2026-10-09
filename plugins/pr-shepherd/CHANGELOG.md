@@ -13,13 +13,15 @@
   `pr-shepherd-astra` is replaced by `pr-shepherd-sol-high`.
 - OpenCode DeepSeek fallback uses `deepseek-flash` for every role (no V4-Pro).
 - Faster reviews: every role runs one effort step lower (Deep-review roles at
-  high/xhigh took 6–8 minutes each). Claude: medium for most roles via the new
-  `sonnet-reviewer-medium` and `opus-reviewer-medium`, high for types, code
-  quality, language, verification and Remy+; the xhigh definitions are removed.
+  high/xhigh took 6–8 minutes each). Claude: Opus never above medium
+  (`opus-reviewer-medium` for Maya, Theo, Felix, Remy+, Vera, Zoe, Cleo, Otis,
+  Milo, Luna), Sonnet at medium (new `sonnet-reviewer-medium`) for Finn, Jasper,
+  routine Remy and Ruby, Sonnet at high for Nora, Oscar and Iris;
+  `opus-reviewer`, `opus-reviewer-xhigh` and `sonnet-reviewer-xhigh` are removed.
   Codex/OpenCode: Sol at medium, Luna at high, Remy+ on Sol at high (OpenCode
   agents `pr-shepherd-sol` now medium, `pr-shepherd-luna-high`,
   `pr-shepherd-sol-high`). dsh: every role at high, Remy+ at max.
-- The installer removes its own retired files (old xhigh Claude links,
+- The installer removes its own retired files (old `opus-reviewer` and xhigh Claude links,
   `pr-shepherd-astra`, `pr-shepherd-sol-medium`, `pr-shepherd-luna-xhigh`) and
   leaves anything it did not create.
 - `review_packet.py` writes a per-role `label` ("Security review"); name

@@ -8,7 +8,7 @@ The canonical source is `plugins/pr-shepherd/skills/pr-shepherd` in
 ## Install
 
 The plugin is the recommended install; it ships the package and registers the
-four Claude reviewer definitions:
+three Claude reviewer definitions:
 
 ```sh
 claude plugin marketplace add Ridestore/ridestore-skills
@@ -42,9 +42,9 @@ links it did not create; reconcile a collision by hand.
 
 ## Reviewer definitions
 
-`agents/opus-reviewer-medium.md`, `opus-reviewer.md`, `sonnet-reviewer-medium.md`
-and `sonnet-reviewer.md` pin `claude-opus-5-5` / `claude-sonnet-5-5` at medium or
-high, with only Read/Grep/Glob. Do not widen their tools. A role that needs
+`agents/opus-reviewer-medium.md`, `sonnet-reviewer-medium.md` and
+`sonnet-reviewer.md` pin `claude-opus-5-5` at medium and `claude-sonnet-5-5` at
+medium or high, with only Read/Grep/Glob. Opus does not run above medium. Do not widen their tools. A role that needs
 another model or effort needs its own definition: add the file, reference it in
 `references/claude-models.md`, add it to the plugin's `agents` list, then run
 `python3 scripts/check_matrix.py --plugin-manifest <plugin.json>`.
