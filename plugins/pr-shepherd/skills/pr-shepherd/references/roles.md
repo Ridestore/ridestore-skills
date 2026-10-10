@@ -60,21 +60,63 @@ CSRF, gateways), secrets and crypto (secrets, API/private keys, encryption,
 password hashing, KMS), infra permissions (workflow `permissions:`/`secrets.`,
 IAM, Dockerfile `USER`, security groups), production commerce APIs (the
 commercetools SDK or API), payments (Stripe, Adyen, Klarna, PayPal, payment
-intents/methods/providers, refunds), personal data where it is stored or
-queried (email, phone, address, birth date in migrations, schemas, models or
-SQL/ORM writes), or when security-relevant changes span two or more top-level
-packages. Repository instructions can add their own production API clients as
-`--security-signal NAME=REGEX`. Otherwise routine Artemis (input validation,
+intents/methods/providers, refunds), personal data where it is stored or queried
+(email, phone, address, birth date in migrations, schemas, models or SQL/ORM
+writes), an added `.gitattributes` line that can hide or collapse source
+(`-diff`, `binary`, `filter=` such as LFS, `linguist-generated`, a macro), a
+file git shows as binary that is not an asset, map, snapshot or generated output
+(its lines are hidden; committed `dist/` bundles, lockfiles and minified files
+count), a committed key, certificate or credential file such as `.env` or
+`.npmrc` (also under tests and fixtures), or when security-relevant changes span
+two or more top-level packages. Repository instructions can add their own
+production API clients as `--security-signal NAME=REGEX` (recorded as `repo:
+NAME`; it adds, never replaces). Otherwise routine Artemis (input validation,
 sanitization or injection checks in one component, dependency bumps, sensitive
 logging). When unsure, use Athena. The coordinator may raise routine to Athena
 with a stated reason, never lower a detected Athena, and names the decision and
 its matches in the plan and the PR body.
 
-Icarus is required for hot paths/resource changes; Hephaestus for structural complexity;
-Palamedes for language-specific behavior outside the others' expertise. Do not run
-specialists only to fill a matrix. Downstream review settings and the optional
-attestation label never lower this profile. Pandora and Odysseus are always distinct
-first-pass calls.
+**Icarus, Hephaestus and Palamedes are also routed by signals, not by judgement.**
+`review_packet.py` adds each one to the plan when the change under review (the
+whole PR, or for a fix check the changes since the reviewed head) has a signal
+for it in changed code or config, and records the matches in the manifest and
+`self-check.md`. Docs, tests, fixtures, lockfiles, generated or vendored output,
+snapshots and translation or data files are ignored.
+
+- **Icarus (performance):** SQL and ORM calls, network calls, a query, network
+  call or `await` inside a loop body, request/webhook/cron/queue handlers,
+  pools, semaphores, locks, concurrency and rate limits, `Promise.all` and batch
+  work, caches and TTLs, timeouts, retries and polling, blocking sync calls,
+  module-level `Map`/`Set`/dict collections, pagination, streams and buffered
+  bodies, migrations and indexes, frontend render and loading work (`useMemo`,
+  `memo`, dynamic imports, observers, scroll listeners) and runtime/build limits
+  (PM2, Kubernetes, Wrangler, bundler config). CI workflows, container files,
+  styles and package manifests are left to Palamedes, and deleting a file routes no
+  specialist.
+- **Hephaestus (code quality):** in source files, 150+ added lines in one file, a new
+  file of 300+ lines, 400+ added lines in total, 10+ files, five or more added
+  lines six levels deep in the file's own indent unit (eight in markup), and
+  escape hatches and dynamic code: `eval`/`exec` calls, `new Function`, `Proxy`,
+  `setattr`/`__getattr__`/`metaclass`, monkeypatching, a TypeScript `any` type,
+  Python `global`/`nonlocal`, `@ts-ignore`/`@ts-nocheck`, lint or type-check
+  suppressions and FIXME/HACK.
+- **Palamedes (language):** shell scripts, SQL and Prisma, Dockerfiles and compose,
+  CI workflows, infrastructure code, build and package config (not release
+  metadata such as `version`), styles, regular expressions, dates, time zones
+  and money arithmetic, encoding and Unicode, async runtime semantics, advanced
+  type-system constructs, module-system edges (`import.meta`, `createRequire`,
+  `exports` maps), signal handling and resource disposal, and added lines in two
+  or more programming languages (JavaScript and TypeScript count as one).
+
+Repository instructions can add their own as `--specialist-signal
+ROLE:NAME=REGEX`, matched against changed paths and added lines (for example a
+hot internal client or a hot directory for Icarus); they are recorded as `repo:
+NAME` and add to the built-in signals, never replace one. The coordinator may
+add a specialist with a stated reason, never drop a signalled one, and names the
+decision and its matches in the plan and the PR body. Do not run specialists
+without a signal or reason only to fill a matrix. Downstream review settings and
+the optional attestation label never lower this profile. Pandora and Odysseus are
+always distinct first-pass calls.
 
 **When findings exist,** run one evidence agent covering Theseus, Aletheia and Metis
 (and Ariadne for null/initialization findings); its output names each check

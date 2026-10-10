@@ -1,9 +1,61 @@
 # Changelog
 
-## 2.5.0
+## 2.6.0
 
 - Rename review personas and packet role IDs to the Greek roster shared with Pegasus and Observability Hub. Icarus owns performance; Ariadne owns reachability.
-- Preserve model identifiers, efforts, review gates and historical release notes.
+- Preserve model identifiers, efforts, review gates and the 2.5.x security/specialist signal detection and review stop rules.
+- Accept legacy names in both `--roles` and `--specialist-signal`; generated packets and automatic specialist routes use Greek identities.
+
+## 2.5.1
+
+- A substantial review fix (a new mechanism such as a parser, cache or retry
+  scheme, or a rewrite of a meaningful part of the change) gets a fresh
+  full-diff pass by Felix plus the specialists the new code signals, not only
+  Maya's incremental check.
+- Stop rule: from the third review round on, only blocking findings (judged
+  by consequence: wrong behaviour, a security or routing bypass, data loss or
+  a regression) are fixed; downgrading a reviewer's critical or important
+  finding needs evidence and is reported to the user; the rest are
+  recorded as known limits in the review record and PR body. Automated review
+  comments after the PR is open are triaged the same way: non-blocking ones
+  get a reply with the reason and are resolved without a new round. Repeated
+  blocking findings in code the previous round wrote are treated as a design
+  problem to simplify, not patch.
+
+## 2.5.0
+
+- Ruby (performance), Oscar (code quality) and Iris (language) are routed by
+  signals in the diff, like Remy+: `review_packet.py` adds each one to the plan
+  when changed code or config has a signal for it and records the matches in the
+  manifest (`specialists`) and `self-check.md`
+  ([routing](skills/pr-shepherd/references/roles.md#routing)). Docs, tests,
+  fixtures, lockfiles, generated output, translations and release metadata are
+  ignored, and a fix check routes on the changes since the reviewed head.
+  `--specialist-signal ROLE:NAME=REGEX` adds repository signals, matched
+  against changed paths and added lines. Same for every
+  runtime.
+- The packet's diff reader counts hunk lengths, so a content line starting with
+  `++ ` no longer hides the rest of a file from security or specialist signals;
+  file names with spaces or non-ASCII characters keep their path, and renames
+  and binary files count by path. Diffs are read as bytes with fixed git output
+  (no colour, external diff tool, custom prefixes or line indicators), so a lone carriage return
+  or the user's git config cannot shift hunks. Specialist signals scan lines up
+  to 2,000 characters and every pattern is bounded, so a minified line cannot
+  stall the script; security signals still scan whole lines. Both the full and
+  the fix diff read attributes from the merge base (`--attr-source`, git
+  2.40+), so a `.gitattributes` added by the PR cannot hide its own lines. An
+  added `.gitattributes` line that can hide or collapse source (`-diff`,
+  `binary`, `filter=` such as LFS, `linguist-generated`, a macro) on a pattern
+  that is not an asset, map, snapshot or generated output (on lockfiles and
+  minified bundles only `linguist-*` is harmless), a file git still shows as
+  binary that is not such an asset or output (committed `dist/` bundles,
+  lockfiles and minified files count), and a committed key, certificate or
+  credential file (`.env`, `.npmrc`, `.netrc`, `.aws/credentials`, Terraform
+  state and tfvars, kubeconfig, keytabs, service-account JSON),
+  also under tests, route Remy+.
+- Repository signals (`--security-signal` and `--specialist-signal`) are
+  recorded as `repo: NAME`: they add to the built-in signals and can no longer
+  replace or switch one off. An invalid regex stops with the offending item.
 
 ## 2.4.2
 

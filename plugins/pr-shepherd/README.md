@@ -47,7 +47,8 @@ A plain request that asks for this workflow also triggers it.
    | Proteus | runtime types and validation at boundaries |
    | Mnemosyne | comments versus actual behavior |
    | Odysseus | an independent second review that doesn't see the others' findings |
-   | Artemis/Athena, Icarus, Hephaestus, Palamedes | security, performance, code quality, language specifics, when the diff needs them |
+   | Artemis | security; the stronger Athena model when signals in the diff touch auth, secrets, payments or other sensitive areas |
+   | Icarus, Hephaestus, Palamedes | performance, code quality, language specifics, added automatically when signals in the diff call for them |
    | Theseus, Aletheia, Metis, Ariadne, Psyche, Harmonia | verify findings, check facts and reachability, reconcile conflicting findings |
 
    Basic, Standard and Deep tiers decide which roles run. Each prompt names the
@@ -56,14 +57,15 @@ A plain request that asks for this workflow also triggers it.
    `scripts/merge_findings.py` merges the replies, groups the same issue across
    roles and flags reviewers that didn't finish. The coordinator verifies each
    finding against the source, fixes the confirmed ones and re-reviews until
-   nothing actionable is left. A reviewer that didn't return means the review is
+   nothing blocking is left (from round 3 only blocking findings are fixed; the
+   rest become known limits, and a substantial fix gets a fresh full-diff pass). A reviewer that didn't return means the review is
    incomplete, not approved.
 6. **Publish.** Pushes only the reviewed head and opens a normal PR. The PR body
    records the reviewed SHAs, which roles and models actually ran with their
    tokens and duration, decisions you made along the way, the checks and any
    limitations.
 7. **Follow up.** About five minutes after the PR opens, it reads review
-   threads, comments and checks. It fixes what is actionable (with another
+   threads, comments and checks. It fixes what is blocking (with another
    local review before each push), replies with evidence and resolves the
    threads it addressed. It stops on merge, close or the deadline (90 minutes
    by default).

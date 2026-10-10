@@ -18,7 +18,10 @@ It refuses a dirty tree, records head/tree/target-tip/merge-base SHAs, exports
 the **entire** PR diff from the merge base (never just `HEAD~1`), lists the
 applicable `AGENTS.md`/`CLAUDE.md`/`REVIEW.md`, writes `self-check.md` and one
 prompt per role under `<git-path>/pr-shepherd-review/<head12>/`, outside tracked
-source. Without Python, do the same steps by hand.
+source. It also adds Icarus, Hephaestus or Palamedes when the change has a signal for them
+([routing](roles.md#routing)) and lists the matches under "Specialists required
+by signals" in `self-check.md`; keep them in the plan. Without Python, do the
+same steps by hand.
 
 ## 2. Self-check before dispatch
 
@@ -60,8 +63,9 @@ ownership; a writer is never its own sole reviewer.
    flags incomplete or stale-head roles. Do not average away disagreement.
 2. Verify each group against code and repository rules. Unsupported assumptions
    are not confirmed problems; missing context is not disproof.
-3. Fix supported in-scope issues, including valid nits, with meaningful
-   regression tests (not tests that restate a copy change).
+3. Fix supported in-scope issues with meaningful regression tests (not tests
+   that restate a copy change). Rounds 1 and 2 fix every supported finding,
+   nits included; from round 3 the stop rule (8) applies.
 4. For a real product decision or out-of-scope remedy, ask the user a precise
    question with the trigger, consequence and options; do not publish a
    supposedly clean PR until it is resolved. Record the decision for the PR body.
@@ -71,13 +75,35 @@ ownership; a writer is never its own sole reviewer.
    `--previous-head <old head> --findings <dispositions file>`, and send it to
    the affected roles plus Pandora's incremental fix check. Reuse earlier evidence
    only where the inspected code is unchanged, and say so.
-7. If rounds stop making progress, isolate the disagreement and ask the user.
+7. **A substantial fix is new code, not a fix.** A fix is substantial when it
+   adds a function, file, state, cache, retry, lock or parser, changes control
+   flow in more than one place, or touches more than one source file; count
+   the fixes of all rounds together, so splitting does not avoid it. When in
+   doubt, it is substantial. Then an incremental check is not enough: rebuild
+   the packet without `--previous-head` and run Odysseus fresh on the whole diff,
+   plus every specialist the new code signals, as well as Pandora.
+8. **Stop rule.** A *round* is one dispatch-and-merge cycle, counted per PR from
+   the first packet; a fresh pass under 7 and the post-PR phase continue the
+   same count. A finding is *blocking* when its trigger leads to wrong
+   behaviour, a security or routing bypass, data loss or a regression, judged
+   by the consequence, whatever severity was assigned. From round 3, fix only
+   blocking findings; record the rest (precision, wording, cosmetic) with a
+   one-line reason in the review record and the PR body as known limits, and
+   start no new round for them. Calling a reviewer's critical or important
+   finding non-blocking needs source evidence and is listed for the user in
+   the final report; if disputed, ask the user or the originating reviewer. If
+   each round finds new blocking issues in code the previous round wrote,
+   treat it as a design problem: stop patching, simplify or narrow the change,
+   and tell the user.
+9. If rounds stop making progress, isolate the disagreement and ask the user.
 
 ## 5. Pass gate
 
 `passed` requires: every required role complete for the final head, every
-finding dispositioned with evidence, no open actionable finding or decision, and
-the applicable checks passing. An infrastructure failure is reported with
+finding dispositioned with evidence (fixed, disproved, or recorded as a
+non-blocking known limit under the stop rule), no open blocking finding or
+decision, a fresh full-diff pass for every substantial fix (7), and the
+applicable checks passing. An infrastructure failure is reported with
 evidence and fixed or explicitly accepted by the user; accepting it never turns
 an unrun reviewer into a completed one, and never allows attestation.
 
@@ -91,9 +117,11 @@ for review fixes too. A previous attestation label proves nothing by itself.
 Keep it beside the packet: repository, SHAs, criteria, tier, role plan,
 self-check result, each role's definition/model/effort, call ID, observed model,
 tokens and duration, findings with dispositions, verification commands and
-results, decisions asked of the user, and the final gate result.
+results, decisions asked of the user, known limits with their reasons, and
+the final gate result.
 
-Known pre-2.5 persona names are accepted as CLI aliases; generated packets use
-the Greek identities. Security requests for Artemis promote to Athena when the
-existing detector finds a sensitive signal. `--roles athena` explicitly requests
-the stronger row. This renaming does not change models, efforts or the detector.
+Known legacy persona names are accepted as CLI aliases in `--roles` and
+`--specialist-signal`; generated packets use Greek identities. Security requests
+for Artemis promote to Athena when the detector finds a sensitive signal.
+`--roles athena` explicitly requests the stronger row. Renaming does not change
+models, efforts or the detector.

@@ -2,7 +2,7 @@
 name: pr-shepherd
 description: Deliver a coding task as a normal, non-draft pull request that has passed a local multi-agent review before the first push, then follow up on review threads and CI. Use for /pr-shepherd, $pr-shepherd, or a request to implement a change and open a locally reviewed PR.
 metadata:
-  version: "2.5.0"
+  version: "2.6.0"
   updated: "2026-10-10"
 ---
 
@@ -80,8 +80,11 @@ One coordinator owns plan, evidence, fixes and delivery. Reviewers are read-only
 native subagents on the same frozen snapshot, each with its scope and what to
 leave to others; queue them in waves if slots are limited. Merge replies with
 `scripts/merge_findings.py`, verify every finding against source, fix confirmed
-ones (valid nits too), ask the user about genuine product choices, and recheck
-until nothing actionable remains. A missing reviewer result is an incomplete
+ones (all of them in rounds 1 and 2), ask the user about genuine product
+choices, and recheck until nothing blocking remains. From round 3 only blocking
+findings are fixed and the rest become known limits; a substantial fix gets a
+fresh full-diff pass ([rules 7-8](references/local-review.md#4-reconcile-and-fix)).
+A missing reviewer result is an incomplete
 review, never approval.
 
 ## 4. Publish
@@ -106,7 +109,7 @@ review, never approval.
 Per [post-PR](references/post-pr.md): inspect about five minutes after each push
 (Claude Code: a background wait or the host's scheduling tool; Codex: its
 heartbeat). Read reviews, inline threads, top-level comments and checks; fix
-actionable items (local review again before pushing), reply with evidence and
+blocking items (local review again before pushing), reply with evidence and
 resolve addressed threads. Review follow-up ends when the repository's review
 automation approved the exact live head and every thread is resolved; unfinished
 CI may continue within the same deadline. Stop at merge, close or the deadline,

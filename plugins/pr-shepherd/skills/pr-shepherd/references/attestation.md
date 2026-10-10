@@ -29,7 +29,8 @@ prefix instead and keep the same JSON fields.
 
 Keep a human-readable review summary beside it: actual roles/models, checks
 and any limitations. Never write `passed` after a skip, timeout, incomplete
-review or unresolved finding. Never copy a marker from another PR or repeat
+review or unresolved blocking finding (known limits recorded under the stop
+rule are listed in the summary). Never copy a marker from another PR or repeat
 its syntax in the author's prose/code examples. A quotation inside a block
 managed by review automation is not another author attestation; do not edit
 the service's blocks to supply evidence.
