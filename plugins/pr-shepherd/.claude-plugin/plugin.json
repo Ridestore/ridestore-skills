@@ -1,7 +1,7 @@
 {
   "name": "pr-shepherd",
   "displayName": "PR Shepherd",
-  "version": "2.5.0",
+  "version": "2.5.1",
   "description": "Deliver a coding task as a normal pull request that passed a local multi-agent review before the first push: implement and validate in an isolated tree, run independent read-only reviewer agents on pinned models, fix every confirmed finding, open the PR, then follow up on review threads and CI.",
   "author": {
     "name": "Ridestore",

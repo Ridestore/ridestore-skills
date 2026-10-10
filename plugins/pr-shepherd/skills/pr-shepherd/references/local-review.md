@@ -63,8 +63,9 @@ ownership; a writer is never its own sole reviewer.
    flags incomplete or stale-head roles. Do not average away disagreement.
 2. Verify each group against code and repository rules. Unsupported assumptions
    are not confirmed problems; missing context is not disproof.
-3. Fix supported in-scope issues, including valid nits, with meaningful
-   regression tests (not tests that restate a copy change).
+3. Fix supported in-scope issues with meaningful regression tests (not tests
+   that restate a copy change). In the first round, fix valid nits too. From
+   the third round on (see 8), fix only blocking findings.
 4. For a real product decision or out-of-scope remedy, ask the user a precise
    question with the trigger, consequence and options; do not publish a
    supposedly clean PR until it is resolved. Record the decision for the PR body.
@@ -74,13 +75,28 @@ ownership; a writer is never its own sole reviewer.
    `--previous-head <old head> --findings <dispositions file>`, and send it to
    the affected roles plus Maya's incremental fix check. Reuse earlier evidence
    only where the inspected code is unchanged, and say so.
-7. If rounds stop making progress, isolate the disagreement and ask the user.
+7. **A substantial fix is new code, not a fix.** When a fix adds a new mechanism
+   (a parser, a cache, a retry or locking scheme, a new signal family) or
+   rewrites a meaningful part of the change, an incremental check is not
+   enough: rebuild the packet without `--previous-head` and run Felix fresh on
+   the whole diff, plus every specialist the new code signals, as well as Maya.
+   A small, local fix keeps the incremental check.
+8. **Stop rule.** A finding is *blocking* when it is critical or important and
+   has a plausible trigger: a real bug, a security or routing bypass, data loss,
+   a regression. From the third round on, fix only blocking findings. Record the
+   rest (minor precision, rare edge cases, wording) with a one-line reason in the
+   review record and the PR body as known limits, and do not start another
+   round for them. If each round keeps finding new blocking issues in code the
+   previous round just wrote, treat it as a design problem: stop patching,
+   simplify or narrow the change, and tell the user.
+9. If rounds stop making progress, isolate the disagreement and ask the user.
 
 ## 5. Pass gate
 
 `passed` requires: every required role complete for the final head, every
-finding dispositioned with evidence, no open actionable finding or decision, and
-the applicable checks passing. An infrastructure failure is reported with
+finding dispositioned with evidence (fixed, disproved, or recorded as a
+non-blocking known limit under the stop rule), no open blocking finding or
+decision, and the applicable checks passing. An infrastructure failure is reported with
 evidence and fixed or explicitly accepted by the user; accepting it never turns
 an unrun reviewer into a completed one, and never allows attestation.
 
