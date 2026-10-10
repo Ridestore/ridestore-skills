@@ -213,6 +213,8 @@ CREDENTIAL_FILE = re.compile(
 def _hides_source(path):
     """A file git shows as binary hides its lines unless it is an asset or output
     hidden by design; under docs, tests and fixtures only source files count."""
+    if SHIPPED_OUTPUT.search(path):
+        return True  # lockfiles (bun.lockb too) and minified bundles install or ship code
     if BINARY_ASSET.search(path) or HIDDEN_BY_DESIGN.search(path):
         return False
     return bool(_language(path)) if NOT_CODE_EXCEPT_SUFFIX.search(path) else True
@@ -231,9 +233,9 @@ def _hides_lines(attribute_line):
     pattern, attributes = tokens[0], tokens[1:]
     # A glob class or escape ([...], ?, \) can make a harmless-looking name match any file.
     exact = not pattern.startswith("[attr]") and not pattern.endswith(("/", "*")) and not any(c in pattern for c in "[?\\")
-    if exact and (BINARY_ASSET.search(pattern) or HIDDEN_BY_DESIGN.search(pattern)):
-        return False
     shipped = exact and SHIPPED_OUTPUT.search(pattern)
+    if exact and not shipped and (BINARY_ASSET.search(pattern) or HIDDEN_BY_DESIGN.search(pattern)):
+        return False
     for attribute in attributes:
         name = attribute.lstrip("-!").split("=")[0]
         if shipped and name.startswith("linguist-"):
@@ -350,7 +352,7 @@ LOOP_HEAD = re.compile(r"^\s*(?:async\s+)?(?:for(?:each)?|while)\b|\.(?:for_each
     r"|^\s*(?:until\b(?!\s*[:=])(?!\()|loop\s+do\b)|\.(?:in_batches|find_in_batches|downto)\b[^\n]{0,80}\bdo\b"
     r"|\.(?:each|map|flatMap|filter|reduce|some|every|forEach)\(\s*(?:[\w$.]{1,40},\s*)?(?:async\s+)?function\b[^\n]{0,80}\{\s*$|^\s*(?:do|loop)\s*\{|\.(?:each|map|flatMap|filter|reduce|some|every|forEach)\(\s*(?:[\w$.]{1,40},\s*)?(?:async\b|\(?[^()=\n]{0,80}\)?\s*(?::[^=\n]{1,60})?=>\s*\{\s*$)")
 LOOP_COST = re.compile(_SQL + "|" + _ORM + "|" + _NET + r"|\bawait\b")
-LOOP_MAX = 40  # body lines followed after a loop header
+LOOP_MAX = 100_000  # a loop body ends at a dedent, a new hunk or a new file, not after N lines
 
 COMPLEXITY_FILE_LINES = 150   # added lines in one source file
 COMPLEXITY_NEW_FILE_LINES = 300
@@ -630,9 +632,10 @@ def git(repo, *args, check=True):
 
 # Diffs are read as bytes, without newline translation (a lone CR must not add a
 # line the hunk header does not count) and with fixed output whatever the user's
-# git config says about colour, external diff tools, textconv filters, prefixes
-# or path quoting.
-DIFF_ARGS = ("-c", "core.quotePath=true", "diff", "--no-color", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/", "--find-renames")
+# git config says about colour, external diff tools, textconv filters, prefixes,
+# path quoting or the +/-/space line indicators.
+DIFF_ARGS = ("-c", "core.quotePath=true", "-c", "diff.outputIndicatorNew=+", "-c", "diff.outputIndicatorOld=-",
+             "-c", "diff.outputIndicatorContext= ", "diff", "--no-color", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/", "--find-renames")
 
 
 def git_diff(repo, old, new, attr_source):

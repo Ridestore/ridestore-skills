@@ -16,7 +16,7 @@
   `++ ` no longer hides the rest of a file from security or specialist signals;
   file names with spaces or non-ASCII characters keep their path, and renames
   and binary files count by path. Diffs are read as bytes with fixed git output
-  (no colour, external diff tool or custom prefixes), so a lone carriage return
+  (no colour, external diff tool, custom prefixes or line indicators), so a lone carriage return
   or the user's git config cannot shift hunks. Specialist signals scan lines up
   to 2,000 characters and every pattern is bounded, so a minified line cannot
   stall the script; security signals still scan whole lines. Both the full and
