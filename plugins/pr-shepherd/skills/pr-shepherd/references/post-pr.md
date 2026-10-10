@@ -71,13 +71,13 @@ addressed review threads. It does not authorize approval, merge, deployment,
 messages elsewhere or changing repository-wide review settings.
 
 - For a valid in-scope finding: fix it locally, add useful regression coverage,
-  run applicable checks, complete local review for the resulting head, then
+  run applicable checks, complete local review for the resulting head (a
+  substantial fix gets the fresh full-diff pass, local-review.md item 7), then
   push. Reply in the original thread with the fix commit and verification.
   Resolve the thread only after the fix is present remotely.
 - Triage automated review comments the same way as local findings
   ([stop rule](local-review.md#4-reconcile-and-fix)). Batch the blocking ones
-  (critical or important, plausible trigger) into one fix and one review
-  round. A valid but non-blocking comment (minor precision, rare edge case,
+  (by consequence, local-review.md item 8) into one fix and one review round. A valid but non-blocking comment (minor precision, rare edge case,
   wording) gets a reply with the one-line reason it is left as is, is added to
   the PR body's known limits, and is resolved; it does not start a new round.
 - For an incorrect or already-fixed finding: reply with concrete source or
@@ -87,7 +87,7 @@ messages elsewhere or changing repository-wide review settings.
   on the PR, ask the user a focused question and leave the thread unresolved
   until an agreed resolution is implemented or evidenced.
 - Top-level comments/review summaries cannot always be marked resolved; reply
-  with their dispositions and track any actionable item. Do not claim a
+  with their dispositions and track any blocking item. Do not claim a
   formal `CHANGES_REQUESTED` review was dismissed just because its inline
   threads were resolved. Inspect/request the normal automation re-review as
   appropriate; never self-approve or fabricate another reviewer's approval.
@@ -116,7 +116,7 @@ One completed delayed inspection of the **latest head** is the minimum. End
 this skill's follow-up when the expected review automation has responded for
 that head, applicable checks have finished successfully (or a documented
 external risk has been explicitly accepted where required), there are no
-unresolved actionable review findings, and local verification/worktree state
+unresolved blocking review findings (known limits listed separately), and local verification/worktree state
 are clean. A stricter repo readiness loop still applies. If a repository
 explicitly has no automatic reviewer, record that verified configuration;
 silence by itself does not prove review is disabled.

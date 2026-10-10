@@ -80,10 +80,11 @@ One coordinator owns plan, evidence, fixes and delivery. Reviewers are read-only
 native subagents on the same frozen snapshot, each with its scope and what to
 leave to others; queue them in waves if slots are limited. Merge replies with
 `scripts/merge_findings.py`, verify every finding against source, fix confirmed
-ones (valid nits too in the first round), ask the user about genuine product
-choices, and recheck until nothing blocking remains; from the third round only
-blocking findings are fixed and the rest become known limits, and a substantial
-fix gets a fresh full-diff pass ([stop rule](references/local-review.md#4-reconcile-and-fix)). A missing reviewer result is an incomplete
+ones (all of them in rounds 1 and 2), ask the user about genuine product
+choices, and recheck until nothing blocking remains. From round 3 only blocking
+findings are fixed and the rest become known limits; a substantial fix gets a
+fresh full-diff pass ([rules 7-8](references/local-review.md#4-reconcile-and-fix)).
+A missing reviewer result is an incomplete
 review, never approval.
 
 ## 4. Publish
@@ -108,7 +109,7 @@ review, never approval.
 Per [post-PR](references/post-pr.md): inspect about five minutes after each push
 (Claude Code: a background wait or the host's scheduling tool; Codex: its
 heartbeat). Read reviews, inline threads, top-level comments and checks; fix
-actionable items (local review again before pushing), reply with evidence and
+blocking items (local review again before pushing), reply with evidence and
 resolve addressed threads. Review follow-up ends when the repository's review
 automation approved the exact live head and every thread is resolved; unfinished
 CI may continue within the same deadline. Stop at merge, close or the deadline,

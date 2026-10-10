@@ -6,8 +6,10 @@
   scheme, or a rewrite of a meaningful part of the change) gets a fresh
   full-diff pass by Felix plus the specialists the new code signals, not only
   Maya's incremental check.
-- Stop rule: from the third review round on, only blocking findings
-  (critical or important with a plausible trigger) are fixed; the rest are
+- Stop rule: from the third review round on, only blocking findings (judged
+  by consequence: wrong behaviour, a security or routing bypass, data loss or
+  a regression) are fixed; downgrading a reviewer's critical or important
+  finding needs evidence and is reported to the user; the rest are
   recorded as known limits in the review record and PR body. Automated review
   comments after the PR is open are triaged the same way: non-blocking ones
   get a reply with the reason and are resolved without a new round. Repeated
