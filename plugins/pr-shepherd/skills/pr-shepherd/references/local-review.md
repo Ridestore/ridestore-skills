@@ -64,8 +64,8 @@ ownership; a writer is never its own sole reviewer.
 2. Verify each group against code and repository rules. Unsupported assumptions
    are not confirmed problems; missing context is not disproof.
 3. Fix supported in-scope issues with meaningful regression tests (not tests
-   that restate a copy change). In the first round, fix valid nits too. From
-   the third round on (see 8), fix only blocking findings.
+   that restate a copy change). Rounds 1 and 2 fix every supported finding,
+   nits included; from round 3 the stop rule (8) applies.
 4. For a real product decision or out-of-scope remedy, ask the user a precise
    question with the trigger, consequence and options; do not publish a
    supposedly clean PR until it is resolved. Record the decision for the PR body.
@@ -75,20 +75,26 @@ ownership; a writer is never its own sole reviewer.
    `--previous-head <old head> --findings <dispositions file>`, and send it to
    the affected roles plus Maya's incremental fix check. Reuse earlier evidence
    only where the inspected code is unchanged, and say so.
-7. **A substantial fix is new code, not a fix.** When a fix adds a new mechanism
-   (a parser, a cache, a retry or locking scheme, a new signal family) or
-   rewrites a meaningful part of the change, an incremental check is not
-   enough: rebuild the packet without `--previous-head` and run Felix fresh on
-   the whole diff, plus every specialist the new code signals, as well as Maya.
-   A small, local fix keeps the incremental check.
-8. **Stop rule.** A finding is *blocking* when it is critical or important and
-   has a plausible trigger: a real bug, a security or routing bypass, data loss,
-   a regression. From the third round on, fix only blocking findings. Record the
-   rest (minor precision, rare edge cases, wording) with a one-line reason in the
-   review record and the PR body as known limits, and do not start another
-   round for them. If each round keeps finding new blocking issues in code the
-   previous round just wrote, treat it as a design problem: stop patching,
-   simplify or narrow the change, and tell the user.
+7. **A substantial fix is new code, not a fix.** A fix is substantial when it
+   adds a function, file, state, cache, retry, lock or parser, changes control
+   flow in more than one place, or touches more than one source file; count
+   the fixes of all rounds together, so splitting does not avoid it. When in
+   doubt, it is substantial. Then an incremental check is not enough: rebuild
+   the packet without `--previous-head` and run Felix fresh on the whole diff,
+   plus every specialist the new code signals, as well as Maya.
+8. **Stop rule.** A *round* is one dispatch-and-merge cycle, counted per PR from
+   the first packet; a fresh pass under 7 and the post-PR phase continue the
+   same count. A finding is *blocking* when its trigger leads to wrong
+   behaviour, a security or routing bypass, data loss or a regression, judged
+   by the consequence, whatever severity was assigned. From round 3, fix only
+   blocking findings; record the rest (precision, wording, cosmetic) with a
+   one-line reason in the review record and the PR body as known limits, and
+   start no new round for them. Calling a reviewer's critical or important
+   finding non-blocking needs source evidence and is listed for the user in
+   the final report; if disputed, ask the user or the originating reviewer. If
+   each round finds new blocking issues in code the previous round wrote,
+   treat it as a design problem: stop patching, simplify or narrow the change,
+   and tell the user.
 9. If rounds stop making progress, isolate the disagreement and ask the user.
 
 ## 5. Pass gate
@@ -96,7 +102,8 @@ ownership; a writer is never its own sole reviewer.
 `passed` requires: every required role complete for the final head, every
 finding dispositioned with evidence (fixed, disproved, or recorded as a
 non-blocking known limit under the stop rule), no open blocking finding or
-decision, and the applicable checks passing. An infrastructure failure is reported with
+decision, a fresh full-diff pass for every substantial fix (7), and the
+applicable checks passing. An infrastructure failure is reported with
 evidence and fixed or explicitly accepted by the user; accepting it never turns
 an unrun reviewer into a completed one, and never allows attestation.
 
@@ -110,4 +117,5 @@ for review fixes too. A previous attestation label proves nothing by itself.
 Keep it beside the packet: repository, SHAs, criteria, tier, role plan,
 self-check result, each role's definition/model/effort, call ID, observed model,
 tokens and duration, findings with dispositions, verification commands and
-results, decisions asked of the user, and the final gate result.
+results, decisions asked of the user, known limits with their reasons, and
+the final gate result.
