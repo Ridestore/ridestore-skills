@@ -77,8 +77,9 @@ messages elsewhere or changing repository-wide review settings.
   Resolve the thread only after the fix is present remotely.
 - Triage automated review comments the same way as local findings
   ([stop rule](local-review.md#4-reconcile-and-fix)). Batch the blocking ones
-  (by consequence, local-review.md item 8) into one fix and one review round. A valid but non-blocking comment (minor precision, rare edge case,
-  wording) gets a reply with the one-line reason it is left as is, is added to
+  (by consequence, local-review.md item 8) into one fix and one review round.
+  In rounds 1 and 2, fix every valid comment. From round 3, a valid but
+  non-blocking comment (minor precision, rare edge case, wording) gets a reply with the one-line reason it is left as is, is added to
   the PR body's known limits, and is resolved; it does not start a new round.
 - For an incorrect or already-fixed finding: reply with concrete source or
   reproduction evidence, then resolve the addressed thread. Do not resolve
