@@ -1,11 +1,11 @@
 # Claude Code role/model matrix
 
-Matrix revision: 2026-10-09 (skill 2.4.2), cost profile. Theo and Felix on
+Matrix revision: 2026-10-10 (skill 2.5.0), cost profile. Daedalus and Odysseus on
 `sonnet-reviewer-medium` (since 2.4.2) are not yet runtime-verified in those roles.
 Last verified: 2026-10-09 — on the local review of skill 2.4.0 (Claude Code
-2.1.295), `opus-reviewer-medium` ran Maya (132k tokens, 3.9 min; recheck 74k,
-1.8 min) and Theo (184k, 4.7 min), and `sonnet-reviewer` (effort high) ran the
-merged Finn+Jasper call (146k, 4.1 min; recheck 109k, 2.2 min), all returning
+2.1.295), `opus-reviewer-medium` ran Pandora (132k tokens, 3.9 min; recheck 74k,
+1.8 min) and Daedalus (184k, 4.7 min), and `sonnet-reviewer` (effort high) ran the
+merged Themis+Mnemosyne call (146k, 4.1 min; recheck 109k, 2.2 min), all returning
 complete results (observed response model not captured). `sonnet-reviewer-medium` is new in 2.4.0 and not yet runtime-verified.
 Check with `python3 scripts/check_matrix.py` (definitions, pins, verification age).
 
@@ -15,29 +15,29 @@ choices take precedence. Keep the current coordinator and its reasoning setting.
 | Role | Pinned model ID | Effort | Native reviewer definition |
 | --- | --- | --- | --- |
 | Coordinator | Inherit current parent; recommend `claude-opus-5-5` for a new session | Inherit parent | Existing parent |
-| Finn — guidelines | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
-| Maya — bugs / incremental fix check | `claude-opus-5-5` | medium | opus-reviewer-medium |
-| Theo — architecture | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
-| Nora — types | `claude-sonnet-5-5` | high | sonnet-reviewer |
-| Jasper — comments and intent | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
-| Felix — independent reviewer | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
-| Remy — security, routine | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
-| Remy+ — security: auth, permissions, trust boundaries, secrets, infra, cross-service | `claude-opus-5-5` | medium | opus-reviewer-medium |
-| Ruby — performance | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
-| Oscar — code quality | `claude-sonnet-5-5` | high | sonnet-reviewer |
-| Iris — language | `claude-sonnet-5-5` | high | sonnet-reviewer |
-| Zoe / Cleo — reflection and debate | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
-| Vera — verification | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
-| Otis / Milo / Luna — fact check, confidence, reachability | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
-| Ada / Eli / Sofia / Hugo / Max — optional companion duties | Coordinator, or `claude-sonnet-5-5` if delegated | Coordinator's own, or medium when delegated | Not counted as review |
+| Themis — guidelines | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
+| Pandora — bugs / incremental fix check | `claude-opus-5-5` | medium | opus-reviewer-medium |
+| Daedalus — architecture | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
+| Proteus — types | `claude-sonnet-5-5` | high | sonnet-reviewer |
+| Mnemosyne — comments and intent | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
+| Odysseus — independent reviewer | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
+| Artemis — security, routine | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
+| Athena — security: auth, permissions, trust boundaries, secrets, infra, cross-service | `claude-opus-5-5` | medium | opus-reviewer-medium |
+| Icarus — performance | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
+| Hephaestus — code quality | `claude-sonnet-5-5` | high | sonnet-reviewer |
+| Palamedes — language | `claude-sonnet-5-5` | high | sonnet-reviewer |
+| Psyche / Harmonia — reflection and debate | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
+| Theseus — verification | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
+| Aletheia / Metis / Ariadne — fact check, confidence, reachability | `claude-sonnet-5-5` | medium | sonnet-reviewer-medium |
+| Calliope / Prometheus / Cadmus / Cassandra / Peitho — optional companion duties | Coordinator, or `claude-sonnet-5-5` if delegated | Coordinator's own, or medium when delegated | Not counted as review |
 
-Since 2.4.0 Opus never runs above medium and is used only for bugs (Maya) and
-sensitive security (Remy+); every other role runs Sonnet, at high for types,
-code quality and language and at medium for the rest. Felix on Sonnet also gives
-the independent pass a different model than Maya's, so their blind spots differ.
+Since 2.4.0 Opus never runs above medium and is used only for bugs (Pandora) and
+sensitive security (Athena); every other role runs Sonnet, at high for types,
+code quality and language and at medium for the rest. Odysseus on Sonnet also gives
+the independent pass a different model than Pandora's, so their blind spots differ.
 Everything runs one effort step lower than before: on a real Deep review
 (2026-10-09) Opus at high took about 6.5 minutes and Sonnet at xhigh about 8.
-Maya has run at medium since 2.1.0 (Theo did too until it moved to Sonnet in
+Pandora has run at medium since 2.1.0 (Daedalus did too until it moved to Sonnet in
 2.4.0). Whether medium finds as much is not measured yet; the xhigh and
 Opus-high definitions were removed.
 
@@ -46,7 +46,7 @@ Opus-high definitions were removed.
 - The three definitions in `agents/*-reviewer*.md` are the source of truth for
   model and effort pins. They are templates, not shared conversations: start a
   fresh call per planned role with the role name and complete review packet.
-  Keep Felix separate from Maya and show him no earlier findings.
+  Keep Odysseus separate from Pandora and show him no earlier findings.
 - Effort lives in each definition's frontmatter; the Agent tool has no per-call
   effort, so a different effort needs its own definition. Plugin-shipped agents
   honor `model` and `effort`. `/tasks` and the status line show both.

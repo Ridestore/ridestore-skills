@@ -41,19 +41,19 @@ A plain request that asks for this workflow also triggers it.
 
    | Role | Focus |
    | --- | --- |
-   | Finn | the repository's written rules |
-   | Maya | concrete bugs; later, checks every fix |
-   | Theo | architecture, contracts, side effects |
-   | Nora | runtime types and validation at boundaries |
-   | Jasper | comments versus actual behavior |
-   | Felix | an independent second review that doesn't see the others' findings |
-   | Remy | security; the stronger Remy+ model when signals in the diff touch auth, secrets, payments or other sensitive areas |
-   | Ruby, Oscar, Iris | performance, code quality, language specifics, added automatically when signals in the diff call for them |
-   | Vera, Otis, Milo, Luna, Zoe, Cleo | verify findings, check facts and reachability, reconcile conflicting findings |
+   | Themis | the repository's written rules |
+   | Pandora | concrete bugs; later, checks every fix |
+   | Daedalus | architecture, contracts, side effects |
+   | Proteus | runtime types and validation at boundaries |
+   | Mnemosyne | comments versus actual behavior |
+   | Odysseus | an independent second review that doesn't see the others' findings |
+   | Artemis | security; the stronger Athena model when signals in the diff touch auth, secrets, payments or other sensitive areas |
+   | Icarus, Hephaestus, Palamedes | performance, code quality, language specifics, added automatically when signals in the diff call for them |
+   | Theseus, Aletheia, Metis, Ariadne, Psyche, Harmonia | verify findings, check facts and reachability, reconcile conflicting findings |
 
    Basic, Standard and Deep tiers decide which roles run. Each prompt names the
    role's scope **and what to leave to other roles**, and doc-heavy changes run
-   Finn and Jasper as one call, so the same issue isn't paid for five times.
+   Themis and Mnemosyne as one call, so the same issue isn't paid for five times.
    `scripts/merge_findings.py` merges the replies, groups the same issue across
    roles and flags reviewers that didn't finish. The coordinator verifies each
    finding against the source, fixes the confirmed ones and re-reviews until
@@ -78,8 +78,8 @@ It never merges or deploys unless you say so separately.
 | --- | --- |
 | Claude Code | Three native subagents shipped with the plugin, limited to Read/Grep/Glob: `opus-reviewer-medium` (`claude-opus-5-5` at medium) only for bugs and sensitive security, `sonnet-reviewer-medium` (`claude-sonnet-5-5` at medium) for architecture, the independent pass (a different model than the bug review), guidelines, comments, routine security, performance and the evidence and reflection roles, and `sonnet-reviewer` (Sonnet at high) for types, code quality and language. Opus never runs above medium. As a plugin they appear as `pr-shepherd:opus-reviewer-medium` and so on. |
 | Codex | Native Codex subagents: `gpt-6.1-sol` only for bugs (medium) and sensitive security changes (high; auth, permissions, trust boundaries, secrets, infra, cross-service, chosen from signals in the diff); every other role runs `gpt-6-luna`, at xhigh for the general roles (including routine security) and at high for types, code quality, language and verification. |
-| OpenCode | Four subagents in `agents/opencode/` with mixed providers: Maya, Zoe and Cleo on Claude Opus 5.5, everything else on the Codex models above, so Felix's independent pass runs on a different model family than Maya's. Without GPT or Claude connected, the installer switches the agents to DeepSeek Flash or else GLM-5.3 for every role. Not yet verified at runtime. Parallel reviewers need `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true`. |
-| DeepSeek Harness (`dsh`) | DeepSeek only: two read-only delegation tools added to dsh's home patch, both on `deepseek-flash` — `pr_shepherd_flash` (effort high) for every role and `pr_shepherd_flash_max` (effort max) for sensitive security (Remy+) only. One model family, so Felix's pass is not cross-family. Not yet verified at runtime. See [DeepSeek Harness](#deepseek-harness-dsh). |
+| OpenCode | Four subagents in `agents/opencode/` with mixed providers: Pandora, Psyche and Harmonia on Claude Opus 5.5, everything else on the Codex models above, so Odysseus's independent pass runs on a different model family than Pandora's. Without GPT or Claude connected, the installer switches the agents to DeepSeek Flash or else GLM-5.3 for every role. Not yet verified at runtime. Parallel reviewers need `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true`. |
+| DeepSeek Harness (`dsh`) | DeepSeek only: two read-only delegation tools added to dsh's home patch, both on `deepseek-flash` — `pr_shepherd_flash` (effort high) for every role and `pr_shepherd_flash_max` (effort max) for sensitive security (Athena) only. One model family, so Odysseus's pass is not cross-family. Not yet verified at runtime. See [DeepSeek Harness](#deepseek-harness-dsh). |
 
 Full role-to-model tables:
 [`claude-models.md`](skills/pr-shepherd/references/claude-models.md),
@@ -175,8 +175,8 @@ python3 plugins/pr-shepherd/skills/pr-shepherd/scripts/install.py --install --ds
 
   | Tool | Model | Effort | Roles |
   | --- | --- | --- | --- |
-  | `pr_shepherd_flash` | `deepseek-flash` (V4.1 Flash) | high | every role except Remy+ |
-  | `pr_shepherd_flash_max` | `deepseek-flash` | max | Remy+ (sensitive security) |
+  | `pr_shepherd_flash` | `deepseek-flash` (V4.1 Flash) | high | every role except Athena |
+  | `pr_shepherd_flash_max` | `deepseek-flash` | max | Athena (sensitive security) |
 
   DeepSeek's efforts are `off`, `low`, `high` and `max` (no medium).
 - **Read-only, with native tool presentation only:** both tools allow only

@@ -8,27 +8,27 @@ ran (see [maintenance](maintenance.md)). Check with `python3 scripts/check_matri
 dsh runs only DeepSeek models here: `deepseek-flash` (DeepSeek-V4.1-Flash) for
 every role. DeepSeek's reasoning efforts are `off`, `low`, `high` and `max` (no
 `medium` or `xhigh`), so every role runs at `high` except sensitive security
-(Remy+), which runs at `max`. Every role is on one model family: say
-in the plan and PR that Felix's independent pass is **not** cross-family.
+(Athena), which runs at `max`. Every role is on one model family: say
+in the plan and PR that Odysseus's independent pass is **not** cross-family.
 
 | Role | Pinned model ID | Effort | dsh tool |
 | --- | --- | --- | --- |
 | Coordinator | Current session model | Inherit | Current session |
-| Finn — guidelines | `deepseek-flash` | high | pr_shepherd_flash |
-| Maya — bugs / incremental fix check | `deepseek-flash` | high | pr_shepherd_flash |
-| Theo — architecture | `deepseek-flash` | high | pr_shepherd_flash |
-| Nora — types | `deepseek-flash` | high | pr_shepherd_flash |
-| Jasper — comments and intent | `deepseek-flash` | high | pr_shepherd_flash |
-| Felix — independent reviewer | `deepseek-flash` | high | pr_shepherd_flash |
-| Remy — security, routine | `deepseek-flash` | high | pr_shepherd_flash |
-| Remy+ — security: auth, permissions, trust boundaries, secrets, infra, cross-service | `deepseek-flash` | max | pr_shepherd_flash_max |
-| Ruby — performance | `deepseek-flash` | high | pr_shepherd_flash |
-| Oscar — code quality | `deepseek-flash` | high | pr_shepherd_flash |
-| Iris — language | `deepseek-flash` | high | pr_shepherd_flash |
-| Zoe / Cleo — reflection and debate | `deepseek-flash` | high | pr_shepherd_flash |
-| Vera — verification | `deepseek-flash` | high | pr_shepherd_flash |
-| Otis / Milo / Luna — fact check, confidence, reachability | `deepseek-flash` | high | pr_shepherd_flash |
-| Ada / Eli / Sofia / Hugo / Max — optional companion duties | Coordinator | Inherit | Not counted as review |
+| Themis — guidelines | `deepseek-flash` | high | pr_shepherd_flash |
+| Pandora — bugs / incremental fix check | `deepseek-flash` | high | pr_shepherd_flash |
+| Daedalus — architecture | `deepseek-flash` | high | pr_shepherd_flash |
+| Proteus — types | `deepseek-flash` | high | pr_shepherd_flash |
+| Mnemosyne — comments and intent | `deepseek-flash` | high | pr_shepherd_flash |
+| Odysseus — independent reviewer | `deepseek-flash` | high | pr_shepherd_flash |
+| Artemis — security, routine | `deepseek-flash` | high | pr_shepherd_flash |
+| Athena — security: auth, permissions, trust boundaries, secrets, infra, cross-service | `deepseek-flash` | max | pr_shepherd_flash_max |
+| Icarus — performance | `deepseek-flash` | high | pr_shepherd_flash |
+| Hephaestus — code quality | `deepseek-flash` | high | pr_shepherd_flash |
+| Palamedes — language | `deepseek-flash` | high | pr_shepherd_flash |
+| Psyche / Harmonia — reflection and debate | `deepseek-flash` | high | pr_shepherd_flash |
+| Theseus — verification | `deepseek-flash` | high | pr_shepherd_flash |
+| Aletheia / Metis / Ariadne — fact check, confidence, reachability | `deepseek-flash` | high | pr_shepherd_flash |
+| Calliope / Prometheus / Cadmus / Cassandra / Peitho — optional companion duties | Coordinator | Inherit | Not counted as review |
 
 ## Install
 

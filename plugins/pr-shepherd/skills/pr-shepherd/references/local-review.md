@@ -10,7 +10,7 @@ pushing) and build the packet:
 
 ```sh
 python3 <skill>/scripts/review_packet.py --repo <task tree> --base origin/main --fetch \
-  --runtime claude|codex|opencode|dsh --roles finn,maya,nora,felix \
+  --runtime claude|codex|opencode|dsh --roles themis,pandora,proteus,odysseus \
   --criteria <file or text> --stale '<old value>' --stale '<old id>'
 ```
 
@@ -18,7 +18,7 @@ It refuses a dirty tree, records head/tree/target-tip/merge-base SHAs, exports
 the **entire** PR diff from the merge base (never just `HEAD~1`), lists the
 applicable `AGENTS.md`/`CLAUDE.md`/`REVIEW.md`, writes `self-check.md` and one
 prompt per role under `<git-path>/pr-shepherd-review/<head12>/`, outside tracked
-source. It also adds Ruby, Oscar or Iris when the change has a signal for them
+source. It also adds Icarus, Hephaestus or Palamedes when the change has a signal for them
 ([routing](roles.md#routing)) and lists the matches under "Specialists required
 by signals" in `self-check.md`; keep them in the plan. Without Python, do the
 same steps by hand.
@@ -46,9 +46,9 @@ manifest paths, acceptance criteria, applicable instructions, the role's scope
 **and what to leave to others** ([roles](roles.md)), the prohibitions (no edits,
 commits, pushes, GitHub comments, nested agents) and the JSON result format.
 Describe each call with the role's `label` from `manifest.json`: name, what it
-checks, model and effort ("Maya · Bugs review · Opus medium"; merged calls join
-them, e.g. "Finn+Jasper · Guidelines and comments review · Sonnet medium"), not
-the PR title. The agent type shown beside it is the shared definition. Felix gets no other findings or author claims. Evidence agents do get the
+checks, model and effort ("Pandora · Bugs review · Opus medium"; merged calls join
+them, e.g. "Themis+Mnemosyne · Guidelines and comments review · Sonnet medium"), not
+the PR title. The agent type shown beside it is the shared definition. Odysseus gets no other findings or author claims. Evidence agents do get the
 specific findings. Check live identities before dispatch and again before
 accepting results; a changed snapshot invalidates affected results.
 
@@ -73,15 +73,15 @@ ownership; a writer is never its own sole reviewer.
    silence or a lowered severity are not disproof.
 6. After fixes: verify, commit, rebuild the packet with
    `--previous-head <old head> --findings <dispositions file>`, and send it to
-   the affected roles plus Maya's incremental fix check. Reuse earlier evidence
+   the affected roles plus Pandora's incremental fix check. Reuse earlier evidence
    only where the inspected code is unchanged, and say so.
 7. **A substantial fix is new code, not a fix.** A fix is substantial when it
    adds a function, file, state, cache, retry, lock or parser, changes control
    flow in more than one place, or touches more than one source file; count
    the fixes of all rounds together, so splitting does not avoid it. When in
    doubt, it is substantial. Then an incremental check is not enough: rebuild
-   the packet without `--previous-head` and run Felix fresh on the whole diff,
-   plus every specialist the new code signals, as well as Maya.
+   the packet without `--previous-head` and run Odysseus fresh on the whole diff,
+   plus every specialist the new code signals, as well as Pandora.
 8. **Stop rule.** A *round* is one dispatch-and-merge cycle, counted per PR from
    the first packet; a fresh pass under 7 and the post-PR phase continue the
    same count. A finding is *blocking* when its trigger leads to wrong
@@ -119,3 +119,9 @@ self-check result, each role's definition/model/effort, call ID, observed model,
 tokens and duration, findings with dispositions, verification commands and
 results, decisions asked of the user, known limits with their reasons, and
 the final gate result.
+
+Known legacy persona names are accepted as CLI aliases in `--roles` and
+`--specialist-signal`; generated packets use Greek identities. Security requests
+for Artemis promote to Athena when the detector finds a sensitive signal.
+`--roles athena` explicitly requests the stronger row. Renaming does not change
+models, efforts or the detector.

@@ -12,7 +12,7 @@ Writes, under <git-path>/pr-shepherd-review/<head12>/ (or --out):
 
 Standard library only. Read-only for the repository except `--fetch`.
 
-  review_packet.py --repo . --roles finn,maya,nora,felix --runtime claude \\
+  review_packet.py --repo . --roles themis,pandora,proteus,odysseus --runtime claude \\
       --criteria criteria.md --stale 'Luna/medium' --stale 'old-policy-id'
 """
 
@@ -35,7 +35,7 @@ RESULT_SCHEMA = """{"role":"<role>","head":"<head sha>","base":"<merge-base sha>
  "limitations":[]}"""
 
 
-# Security signals that send Remy to the stronger row (Remy+). Specific forms on
+# Security signals that send Artemis to the stronger row (Athena). Specific forms on
 # purpose: plain "token" or "policy" also mean LLM tokens or config policy.
 SECURITY_SIGNALS = {
     "authentication": r"\b(auth|authn|authenticat[a-z_]*|auth[_-][a-z_]+|login|logout|session[_-]?(id|token|cookie|secret|store)|set-cookie|cookies?|jwt|oauth[a-z0-9_]*|access[_-]?tokens?|refresh[_-]?tokens?|bearer|passw(or)?d[a-z_]*|mfa|2fa|totp)\b",
@@ -252,12 +252,12 @@ def _repo_signals(extra, flags=re.I):
 
 
 def security_tier(diff_text, extra_signals=None):
-    """'remy+' with its matches when a security signal appears in a changed code or
+    """'athena' with its matches when a security signal appears in a changed code or
     config path or added line (docs, tests and fixtures are ignored: prose about auth
-    is not an auth change), otherwise 'remy'. Cross-service: signals in 2+ top-level dirs.
+    is not an auth change), otherwise 'artemis'. Cross-service: signals in 2+ top-level dirs.
     Whole lines are scanned (the patterns are linear), deleted and renamed files
     count by path, and repository signals are added as 'repo: NAME', never
-    replacing a built-in one. Also remy+: an added .gitattributes line that can
+    replacing a built-in one. Also athena: an added .gitattributes line that can
     hide or collapse source (-diff, binary, filter=, linguist-generated, a macro;
     see _hides_lines), a file git shows as binary that is not an asset, map,
     snapshot or generated output (lockfiles and minified bundles count), and a
@@ -287,10 +287,10 @@ def security_tier(diff_text, extra_signals=None):
     if len(tops) >= 2:
         matches["cross-service"] = set(sorted(files)[:5])
     found = {k: sorted(v)[:5] for k, v in matches.items()}
-    return ("remy+" if found else "remy"), found
+    return ("athena" if found else "artemis"), found
 
 
-# Specialist signals: changed code that makes Ruby, Oscar or Iris required, so
+# Specialist signals: changed code that makes Icarus, Hephaestus or Palamedes required, so
 # they are routed by the diff rather than remembered. Like security signals they
 # read changed paths and added lines; docs, tests, fixtures, lockfiles and
 # generated files are ignored. Every pattern carries its own boundaries (no shared
@@ -442,7 +442,7 @@ PACKAGE_JSON = re.compile(r"(^|/)package\.json$")
 # Release metadata in package files (version bumps, release bots) is not a build change.
 PACKAGE_METADATA = re.compile(r'^\s*"?(?:version|name|description|author|license|homepage|repository|private|keywords|autoLastDeveloperCommit)"?\s*[:=]'
                               r'|^\s*[\[\]{}(),]*\s*$', re.I)
-SPECIALISTS = {"ruby": "Ruby (performance)", "oscar": "Oscar (code quality)", "iris": "Iris (language)"}
+SPECIALISTS = {"icarus": "Icarus (performance)", "hephaestus": "Hephaestus (code quality)", "palamedes": "Palamedes (language)"}
 
 
 def _compile(table):
@@ -451,7 +451,7 @@ def _compile(table):
 
 PERFORMANCE_RX, LANGUAGE_RX = _compile(PERFORMANCE_SIGNALS), _compile(LANGUAGE_LINES)
 LANGUAGE_PATH_RX = {name: re.compile(p, re.I) for name, p in LANGUAGE_PATHS.items()}
-# Ruby line signals skip files whose keys only look like runtime work
+# Icarus line signals skip files whose keys only look like runtime work
 # (CI cache:/timeout-minutes:, Docker --no-cache and HEALTHCHECK --retries, styles, manifests).
 RUBY_LINE_SKIP = [CI_PATH, STYLE_PATH, BUILD_CONFIG, LANGUAGE_PATH_RX["container"]]
 
@@ -487,13 +487,13 @@ def compile_extra_signals(items, roles, flag="--specialist-signal", form="ROLE:N
     for item in items:
         role, sep, rest = item.partition(":")
         name, sep2, pattern = rest.partition("=")
-        role = role.strip().lower()
+        role = LEGACY_ROLES.get(role.strip().lower(), role.strip().lower())
         if not (sep and sep2 and role in roles and name.strip() and pattern):
             raise SystemExit(f"{flag} must be {form}" + (f" with ROLE in {sorted(roles)}" if "ROLE" in form else "") + f": {item!r}")
         try:
             out.setdefault(role, {})[f"repo: {name.strip()}"] = re.compile(pattern, re.I)
         except (re.error, OverflowError, RecursionError) as exc:
-            shown = item[len("remy:"):] if flag == "--security-signal" else item
+            shown = item[len("artemis:"):] if flag == "--security-signal" else item
             raise SystemExit(f"{flag}: invalid regex in {shown!r}: {exc}")
     return out
 
@@ -503,17 +503,17 @@ def compile_security_signals(items):
     for item in items:
         if "=" not in item or not item.partition("=")[0].strip() or not item.partition("=")[2]:
             raise SystemExit(f"--security-signal must be NAME=REGEX: {item!r}")
-    compiled = compile_extra_signals([f"remy:{item}" for item in items], {"remy"}, "--security-signal", "NAME=REGEX")
-    return compiled.get("remy", {})
+    compiled = compile_extra_signals([f"artemis:{item}" for item in items], {"artemis"}, "--security-signal", "NAME=REGEX")
+    return compiled.get("artemis", {})
 
 
 def specialist_signals(diff_text, extra=None):
     """Which specialists the diff requires, with the matches that require them:
-    {"ruby": {signal: [files]}, "oscar": {...}, "iris": {...}} (empty roles omitted).
-    `extra` adds compiled repository signals as {"ruby": {"repo: name": regex}};
+    {"icarus": {signal: [files]}, "hephaestus": {...}, "palamedes": {...}} (empty roles omitted).
+    `extra` adds compiled repository signals as {"icarus": {"repo: name": regex}};
     they never replace a built-in signal."""
     extra = {role: _repo_signals(signals) for role, signals in (extra or {}).items()}
-    found = {"ruby": {}, "oscar": {}, "iris": {}}
+    found = {"icarus": {}, "hephaestus": {}, "palamedes": {}}
     added, new_files, indents, seen_indents, config_pending = {}, set(), {}, {}, {}
     loop = None  # (path, header indent, lines left) while inside a loop body
 
@@ -535,11 +535,11 @@ def specialist_signals(diff_text, extra=None):
                 continue  # removing a migration or Dockerfile needs no specialist
             for name, rx in LANGUAGE_PATH_RX.items():
                 if rx.search(path):
-                    hit("iris", name, path)
+                    hit("palamedes", name, path)
             if re.search(r"(^|/)migrations?/|\.(sql|prisma)$", path, re.I):
-                hit("ruby", "schema and indexes", path)
+                hit("icarus", "schema and indexes", path)
             if RUNTIME_LIMIT_PATHS.search(path):
-                hit("ruby", "runtime and build limits", path)
+                hit("icarus", "runtime and build limits", path)
             if BUILD_CONFIG.search(path):
                 config_pending[path] = True  # confirmed by a non-metadata line below
             for role, signals in extra.items():  # repository signals read changed paths too
@@ -548,7 +548,7 @@ def specialist_signals(diff_text, extra=None):
                         hit(role, name, path)
             continue
         if config_pending.get(path) and kind in ("add", "del") and not PACKAGE_METADATA.match(text):
-            hit("iris", "build and package config", path)
+            hit("palamedes", "build and package config", path)
             config_pending[path] = False
         stripped = text.lstrip(" \t")
         body = text.lstrip("\t")
@@ -575,24 +575,24 @@ def specialist_signals(diff_text, extra=None):
         if not any(rx.search(path) for rx in RUBY_LINE_SKIP):
             for name, rx in PERFORMANCE_RX.items():
                 if rx.search(text):
-                    hit("ruby", name, path)
+                    hit("icarus", name, path)
             if (lang == "JavaScript/TypeScript" and MODULE_COLLECTION_JS.search(text)) or (lang == "Python" and MODULE_COLLECTION_PY.search(text)):
-                hit("ruby", "module-level collection", path)
+                hit("icarus", "module-level collection", path)
             if in_loop and LOOP_COST.search(text):
-                hit("ruby", "query, network call or await inside a loop", path)
+                hit("icarus", "query, network call or await inside a loop", path)
         if LOOP_HEAD.search(text) and not in_loop:
             loop = (path, width, LOOP_MAX)
         for name, rx in LANGUAGE_RX.items():
             if rx.search(text):
-                hit("iris", name, path)
+                hit("palamedes", name, path)
         if PACKAGE_JSON.search(path) and PACKAGE_MODULE_KEYS.search(text):
-            hit("iris", "module system", path)
+            hit("palamedes", "module system", path)
         if (lang == "JavaScript/TypeScript" and TS_USING.search(text)) or (lang == "C#" and CS_USING.search(text)):
-            hit("iris", "error handling and resource cleanup", path)
+            hit("palamedes", "error handling and resource cleanup", path)
         if _is_source(lang) and (COMPLEXITY_LINES.search(text) or (lang == "JavaScript/TypeScript" and not COMMENT_LINE.match(text)
                                      and TS_ANY.search(STRINGS_AND_TRAILING_COMMENT.sub(" ", text)))
                                  or (lang == "Python" and PY_GLOBAL.search(text))):
-            hit("oscar", "escape hatches and dynamic code", path)
+            hit("hephaestus", "escape hatches and dynamic code", path)
         for role, signals in extra.items():
             for name, rx in signals.items():
                 if rx.search(text):
@@ -601,25 +601,25 @@ def specialist_signals(diff_text, extra=None):
     source = {p: n for p, n in added.items() if _is_source(_language(p))}
     for path, count in source.items():
         if count >= COMPLEXITY_FILE_LINES:
-            hit("oscar", f"large change (≥{COMPLEXITY_FILE_LINES} added lines in a file)", path)
+            hit("hephaestus", f"large change (≥{COMPLEXITY_FILE_LINES} added lines in a file)", path)
         if path in new_files and count >= COMPLEXITY_NEW_FILE_LINES:
-            hit("oscar", f"large new file (≥{COMPLEXITY_NEW_FILE_LINES} lines)", path)
+            hit("hephaestus", f"large new file (≥{COMPLEXITY_NEW_FILE_LINES} lines)", path)
         limit = COMPLEXITY_NESTING + (2 if MARKUP.search(path) else 0)
         if sum(level >= limit for level in _indent_levels(indents.get(path, []), seen_indents.get(path, []))) >= COMPLEXITY_NESTED_LINES:
-            hit("oscar", f"deep nesting (≥{COMPLEXITY_NESTING} levels)", path)
+            hit("hephaestus", f"deep nesting (≥{COMPLEXITY_NESTING} levels)", path)
     if sum(source.values()) >= COMPLEXITY_TOTAL_LINES:
         for path in sorted(source, key=source.get, reverse=True)[:5]:
-            hit("oscar", f"large diff (≥{COMPLEXITY_TOTAL_LINES} added source lines)", path)
+            hit("hephaestus", f"large diff (≥{COMPLEXITY_TOTAL_LINES} added source lines)", path)
     if len(source) >= COMPLEXITY_WIDE_FILES:
         for path in sorted(source)[:5]:
-            hit("oscar", f"wide change (≥{COMPLEXITY_WIDE_FILES} source files)", path)
+            hit("hephaestus", f"wide change (≥{COMPLEXITY_WIDE_FILES} source files)", path)
     by_language = {}
     for path in sorted(source):
         by_language.setdefault(_language(path), path)
     if len(by_language) >= 2:
         name = "several languages (" + ", ".join(sorted(by_language)) + ")"
         for path in by_language.values():
-            hit("iris", name, path)
+            hit("palamedes", name, path)
     return {role: {k: sorted(v)[:5] for k, v in sorted(matches.items())} for role, matches in found.items() if matches}
 
 
@@ -643,7 +643,7 @@ def git_diff(repo, old, new, attr_source):
     merge base, also for a fix diff), so a .gitattributes the PR added (`*.ts
     -diff`) cannot hide its lines. Git before 2.40 has no --attr-source: the
     diff then uses the worktree attributes, and a hidden source file still
-    routes Remy+ through its 'Binary files ... differ' line."""
+    routes Athena through its 'Binary files ... differ' line."""
     revs = (old, new)
     proc = subprocess.run(["git", "-C", repo, f"--attr-source={attr_source}", *DIFF_ARGS, *revs], capture_output=True)
     if proc.returncode != 0 and b"attr-source" in proc.stderr:
@@ -686,7 +686,7 @@ def table_rows(path):
 
 
 def role_names(cell):
-    """'Zoe / Cleo — reflection and debate' -> ['zoe', 'cleo']."""
+    """'Psyche / Harmonia — reflection and debate' -> ['psyche', 'harmonia']."""
     head = cell.split("—")[0]
     return [n.strip().lower() for n in head.split("/") if n.strip()]
 
@@ -711,7 +711,7 @@ def short_model(model):
 
 def review_label(name, role, model=None, effort=None, sensitive=False):
     """Agent-call description: who, what it checks, and on what
-    ("Maya · Bugs review · Opus medium")."""
+    ("Pandora · Bugs review · Opus medium")."""
     check = role if role.lower().endswith("review") else f"{role} review"
     if sensitive:
         check += " (sensitive)"
@@ -786,10 +786,17 @@ def build_prompt(role, info, setup):
         "Inspect changed files fully and relevant unchanged callers. Each finding needs a concrete trigger, impact and "
         "source evidence. Before returning no findings, try a realistic counterexample to each changed guard.",
     ]
-    if role == "felix":
+    if role == "odysseus":
         lines.append("You see no other reviewer's findings or author claims; review the complete diff from scratch.")
     lines += ["", "Return JSON only:", RESULT_SCHEMA.replace("<role>", role)]
     return "\n".join(lines) + "\n"
+
+
+# CLI compatibility only; never apply these aliases to model identifiers.
+LEGACY_ROLES = dict(zip(
+    "finn maya theo nora jasper felix remy remy+ ruby oscar iris zoe cleo milo vera otis luna ada eli sofia hugo max".split(),
+    "themis pandora daedalus proteus mnemosyne odysseus artemis athena icarus hephaestus palamedes psyche harmonia metis theseus aletheia ariadne calliope prometheus cadmus cassandra peitho".split(),
+))
 
 
 def main(argv=None):
@@ -797,15 +804,15 @@ def main(argv=None):
     ap.add_argument("--repo", default=".")
     ap.add_argument("--base", default="origin/main", help="target ref (default origin/main)")
     ap.add_argument("--fetch", action="store_true", help="fetch the target branch first")
-    ap.add_argument("--roles", required=True, help="comma-separated role names, e.g. finn,maya,felix")
+    ap.add_argument("--roles", required=True, help="comma-separated role names, e.g. themis,pandora,odysseus")
     ap.add_argument("--runtime", choices=["claude", "codex", "opencode", "dsh"], required=True)
     ap.add_argument("--criteria", help="acceptance criteria text, or a path to a file holding them")
     ap.add_argument("--stale", action="append", default=[], help="regex that must no longer appear at head (repeatable)")
     ap.add_argument("--security-signal", action="append", default=[], metavar="NAME=REGEX",
-                    help="extra repository signal that sends Remy to Remy+ (e.g. its production API client)")
+                    help="extra repository signal that sends Artemis to Athena (e.g. its production API client)")
     ap.add_argument("--specialist-signal", action="append", default=[], metavar="ROLE:NAME=REGEX",
-                    help="extra repository signal that makes ruby, oscar or iris required "
-                         "(e.g. 'ruby:bff client=\\bbffClient\\.')")
+                    help="extra repository signal that makes icarus, hephaestus or palamedes required "
+                         "(e.g. 'icarus:bff client=\\bbffClient\\.')")
     ap.add_argument("--previous-head", help="last reviewed head, for an incremental fix check")
     ap.add_argument("--findings", help="file with earlier findings and dispositions, for a recheck")
     ap.add_argument("--out", help="output directory (default: <git-path>/pr-shepherd-review/<head12>)")
@@ -836,7 +843,8 @@ def main(argv=None):
             fh.write(git_diff(repo, args.previous_head, head, merge_base))
 
     roles_info, matrix = load_roles(), load_matrix(args.runtime)
-    wanted = [r.strip().lower() for r in args.roles.split(",") if r.strip()]
+    wanted = list(dict.fromkeys(LEGACY_ROLES.get(r.strip().lower(), r.strip().lower())
+                                for r in args.roles.split(",") if r.strip()))
     unknown = [r for r in wanted if r not in roles_info]
     if unknown:
         raise SystemExit(f"unknown roles {unknown}; known: {sorted(roles_info)}")
@@ -850,6 +858,9 @@ def main(argv=None):
     wanted += [role for role, info in specialists.items() if info["added"]]
 
     tier, signals = security_tier(read_diff(diff_path), compile_security_signals(args.security_signal))
+    if "athena" in wanted:
+        tier = "athena"  # Explicit stronger review never falls back to the routine row.
+    wanted = list(dict.fromkeys(tier if r == "artemis" else r for r in wanted))
     criteria = args.criteria or ""
     if criteria and os.path.isfile(criteria):
         criteria = open(criteria, encoding="utf-8").read().strip()
@@ -859,11 +870,11 @@ def main(argv=None):
         "repo": repo, "repo_name": os.path.basename(repo), "base_ref": args.base, "tip": tip,
         "merge_base": merge_base, "head": head, "tree": tree, "previous_head": args.previous_head,
         "files": files, "instructions": instructions, "runtime": args.runtime,
-        "roles": {r: {**roles_info[r], **matrix.get(tier if r == "remy" else r, {}),
+        "roles": {r: {**roles_info[r], **matrix.get(r, {}),
                       "label": review_label(roles_info[r]["name"], roles_info[r]["role"],
-                                           matrix.get(tier if r == "remy" else r, {}).get("model"),
-                                           matrix.get(tier if r == "remy" else r, {}).get("effort"),
-                                           r == "remy" and tier == "remy+")} for r in wanted},
+                                           matrix.get(r, {}).get("model"),
+                                           matrix.get(r, {}).get("effort"),
+                                           r == "athena")} for r in wanted},
         "security": {"tier": tier, "signals": signals},
         "specialists": specialists,
         "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
@@ -881,7 +892,7 @@ def main(argv=None):
             fh.write("No --stale patterns given. Add the old values this change replaces.\n")
         for pattern, hits in stale.items():
             fh.write(f"- `{pattern}`: {len(hits)} match(es)\n" + "".join(f"  - {h}\n" for h in hits))
-        fh.write(f"\n## Security reviewer\n\nRemy uses the `{tier}` row"
+        fh.write(f"\n## Security reviewer\n\n{tier.capitalize()} uses the `{tier}` row"
                  + (": " + "; ".join(f"{k} ({', '.join(v)})" for k, v in signals.items()) if signals else
                     " (no authentication, authorization, trust-boundary, secrets or infra signal)") + ".\n")
         fh.write("\n## Specialists required by signals\n\n" + ("".join(
@@ -903,7 +914,7 @@ def main(argv=None):
                       "files": len(files), "stale_matches": {p: len(h) for p, h in stale.items()},
                       "security": {"tier": tier, "signals": signals},
                       "specialists": {r: {"added": i["added"], "signals": sorted(i["signals"])} for r, i in specialists.items()},
-                      "roles": {r: matrix.get(tier if r == "remy" else r) for r in wanted}}, indent=2))
+                      "roles": {r: matrix.get(r) for r in wanted}}, indent=2))
     return 1 if any(stale.values()) else 0
 
 

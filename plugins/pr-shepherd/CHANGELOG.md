@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.6.0
+
+- Rename review personas and packet role IDs to the Greek roster shared with Pegasus and Observability Hub. Icarus owns performance; Ariadne owns reachability.
+- Preserve model identifiers, efforts, review gates and the 2.5.x security/specialist signal detection and review stop rules.
+- Accept legacy names in both `--roles` and `--specialist-signal`; generated packets and automatic specialist routes use Greek identities.
+
 ## 2.5.1
 
 - A substantial review fix (a new mechanism such as a parser, cache or retry
