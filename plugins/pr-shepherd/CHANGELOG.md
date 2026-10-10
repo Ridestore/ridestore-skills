@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.5.1
+
+- A substantial review fix (a new mechanism such as a parser, cache or retry
+  scheme, or a rewrite of a meaningful part of the change) gets a fresh
+  full-diff pass by Felix plus the specialists the new code signals, not only
+  Maya's incremental check.
+- Stop rule: from the third review round on, only blocking findings
+  (critical or important with a plausible trigger) are fixed; the rest are
+  recorded as known limits in the review record and PR body. Automated review
+  comments after the PR is open are triaged the same way: non-blocking ones
+  get a reply with the reason and are resolved without a new round. Repeated
+  blocking findings in code the previous round wrote are treated as a design
+  problem to simplify, not patch.
+
 ## 2.5.0
 
 - Ruby (performance), Oscar (code quality) and Iris (language) are routed by

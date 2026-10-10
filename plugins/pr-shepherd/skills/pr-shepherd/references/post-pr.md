@@ -74,6 +74,12 @@ messages elsewhere or changing repository-wide review settings.
   run applicable checks, complete local review for the resulting head, then
   push. Reply in the original thread with the fix commit and verification.
   Resolve the thread only after the fix is present remotely.
+- Triage automated review comments the same way as local findings
+  ([stop rule](local-review.md#4-reconcile-and-fix)). Batch the blocking ones
+  (critical or important, plausible trigger) into one fix and one review
+  round. A valid but non-blocking comment (minor precision, rare edge case,
+  wording) gets a reply with the one-line reason it is left as is, is added to
+  the PR body's known limits, and is resolved; it does not start a new round.
 - For an incorrect or already-fixed finding: reply with concrete source or
   reproduction evidence, then resolve the addressed thread. Do not resolve
   solely because GitHub marks it outdated or the author calls it a nit.
