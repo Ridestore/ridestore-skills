@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: impact-vs-confidence
+description: Separate true conventions from real blocking failures in first-round review.
+tags: [gate, precision]
+runs: 3
+execution:
+  prompt: |
+    /pr-shepherd We are reconciling round 1. All required reviewers completed for the current head.
+    Print your dispositions only; do not use tools, edit files or publish anything.
+    Themis (confidence 100, important): audit label uses name before email. AGENTS says
+    "Use a stable actor identifier in audit records." No consumer failure or merge gate is shown.
+    Mnemosyne (confidence 100, important): prefers "Overview" to "Introduction" in a doc heading.
+    Pandora (minor): the changed admin route removed requireRole("admin"); supplied middleware
+    accepts every authenticated user, and the route writes other users' records.
+    Themis (minor): base-branch REVIEW.md explicitly says "Merge requirement: every new audit
+    write must include authenticated actorId"; the supplied new insert has only actorName.
+    Decide what blocks, what is optional, what to omit, and whether advice needs fixes/inline threads.
+  max_turns: 4
+  timeout_seconds: 300
+expected_outcome: Label convention is optional, wording preference omitted, authorization bypass and explicit merge gate block regardless of scores or severity; optional advice needs no fix or inline thread from round one.
+graders:
+  - name: separates-truth-impact-and-gates
+    type: llm
+    criteria: |
+      PASS only if the ordinary audit-label convention is non-blocking, pure heading taste is omitted,
+      the demonstrated authorization bypass and explicit actorId merge requirement block,
+      and optional advice requires neither a fix, a new review round nor an inline thread/REQUEST_CHANGES.

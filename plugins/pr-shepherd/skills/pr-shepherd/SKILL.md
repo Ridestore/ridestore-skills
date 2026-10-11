@@ -2,7 +2,7 @@
 name: pr-shepherd
 description: Deliver a coding task as a normal, non-draft pull request that has passed a local multi-agent review before the first push, then follow up on review threads and CI. Use for /pr-shepherd, $pr-shepherd, or a request to implement a change and open a locally reviewed PR.
 metadata:
-  version: "2.6.1"
+  version: "2.7.0"
   updated: "2026-10-11"
 ---
 
@@ -80,9 +80,11 @@ One coordinator owns plan, evidence, fixes and delivery. Reviewers are read-only
 native subagents on the same frozen snapshot, each with its scope and what to
 leave to others; queue them in waves if slots are limited. Merge replies with
 `scripts/merge_findings.py`, verify every finding against source, fix confirmed
-ones (all of them in rounds 1 and 2), ask the user about genuine product
-choices, and recheck until nothing blocking remains. From round 3 only blocking
-findings are fixed and the rest become known limits; a substantial fix gets a
+blockers, ask the user about genuine product choices, and recheck until
+nothing blocking remains. From the first round, useful non-blocking advice goes
+in a short optional summary, pure preferences are omitted, and no advisory creates
+an inline thread or REQUEST_CHANGES. Confidence does not establish importance:
+blocking requires concrete harm or an explicit team merge requirement; a substantial fix gets a
 fresh full-diff pass ([rules 7-8](references/local-review.md#4-reconcile-and-fix)).
 A missing reviewer result is an incomplete
 review, never approval.

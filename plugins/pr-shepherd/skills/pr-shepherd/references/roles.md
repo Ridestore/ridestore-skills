@@ -127,9 +127,12 @@ PR. The author alone never independently verifies a disputed fix.
 
 ## What every role does
 
-Inspect relevant unchanged callers, tests and contracts. Report only introduced
-issues anchored to changed behavior, each with a concrete trigger, consequence,
-source location and suggested fix. Missing source means inspect it or report
+Inspect relevant unchanged callers, tests and contracts. Separate factual confidence from importance. Report introduced findings anchored
+in changed behavior. Blockers need a concrete reachable trigger, material consequence,
+source location and suggested fix, or an explicit applicable team merge requirement
+quoted from its instruction file. Ordinary convention violations and useful minor
+improvements are advisory; pure taste is omitted. A guideline violation is not
+automatically important. Report blocking_basis independently of severity. Missing source means inspect it or report
 `needs_context`; it is neither a proven bug nor a disproof. Before returning no
 findings, try a realistic counterexample to each changed guard, validation rule,
 return or side effect.
