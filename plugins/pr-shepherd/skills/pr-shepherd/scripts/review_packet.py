@@ -31,6 +31,7 @@ RESULT_SCHEMA = """{"role":"<role>","head":"<head sha>","base":"<merge-base sha>
  "coverage":["<files and callers inspected>"],
  "findings":[{"id":"<role>-1","file":"<repo-relative path>","line":0,
    "severity":"critical|important|minor|nit","disposition":"supported|needs_context",
+   "blocking_basis":"concrete-impact|merge-requirement|none","rule_quote":"","rule_source":"",
    "out_of_scope":false,"trigger":"","impact":"","evidence":"","suggested_fix":"","question":null}],
  "limitations":[]}"""
 
@@ -721,6 +722,20 @@ def review_label(name, role, model=None, effort=None, sensitive=False):
     return " · ".join(parts)
 
 
+def codex_identity(name, role, model, effort, recheck=False, sensitive=False):
+    """Human label and native fallback name, derived from the same dispatch settings."""
+    purpose = role if role.lower().endswith("review") else f"{role} review"
+    if recheck:
+        purpose += " recheck"
+    if sensitive:
+        purpose += " (sensitive)"
+    display_model = short_model(model)
+    task_name = re.sub(r"[^a-z0-9]+", "_", f"{name} {purpose} {display_model} {effort}".lower()).strip("_")
+    return {"label": f"{name} ({purpose} · {display_model} {effort})",
+            "codex_spawn": {"task_name": task_name, "fork_turns": "none",
+                            "model": model, "reasoning_effort": effort}}
+
+
 def load_matrix(runtime):
     path = os.path.join(SKILL_DIR, "references", f"{runtime}-models.md")
     matrix = {}
@@ -785,6 +800,16 @@ def build_prompt(role, info, setup):
         "Applicable instructions: " + (", ".join(setup["instructions"]) or "none found"),
         "Inspect changed files fully and relevant unchanged callers. Each finding needs a concrete trigger, impact and "
         "source evidence. Before returning no findings, try a realistic counterexample to each changed guard.",
+        "Separate confidence/truth from importance. Blocking requires a demonstrated reachable scenario with material "
+        "consequence (blocking_basis=concrete-impact), or an exact applicable team rule explicitly making it a "
+        "merge/approval condition (blocking_basis=merge-requirement; include rule_quote and rule_source). "
+        "Verify that exact quote in trusted guidance at the frozen target-branch tip (record its SHA and path), "
+        "or separately supplied authoritative team policy. PR-added or PR-modified rules do not qualify by themselves. "
+        "Generic MUST wording or a proven convention violation is not enough. Useful minor advice has "
+        "blocking_basis=none and minor/nit severity; omit pure taste. Missing evidence is needs_context, never disproof. "
+        "Do not invent downstream harm. An audit name/email convention alone is advisory; demonstrated loss of "
+        "required actor attribution or an authorization bypass remains blocking. Documentation wording preferences "
+        "are omitted; harmful operational instructions can block. Advisories do not require fixes or inline threads.",
     ]
     if role == "odysseus":
         lines.append("You see no other reviewer's findings or author claims; review the complete diff from scratch.")
@@ -879,6 +904,11 @@ def main(argv=None):
         "specialists": specialists,
         "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
     }
+    if args.runtime == "codex":
+        for role in manifest["roles"].values():
+            role.update(codex_identity(
+                role["name"], role["role"], role["model"], role["effort"],
+                recheck=bool(args.previous_head), sensitive=role["name"] == "Athena"))
     manifest_path = os.path.join(out, "manifest.json")
     with open(manifest_path, "w") as fh:
         json.dump(manifest, fh, indent=2)

@@ -67,6 +67,37 @@ class ReviewPacketTest(unittest.TestCase):
         self.assertIn("Effort is high.", pandora)
         self.assertIn("no other reviewer's findings", open(os.path.join(out, "prompts", "odysseus.md")).read())
 
+    def test_codex_spawn_names_cover_role_model_effort_and_rechecks(self):
+        all_roles = ",".join(review_packet.load_roles())
+        for previous in ([], ["--previous-head", "main"]):
+            _, out = self.run_packet("--runtime", "codex", "--roles", all_roles, *previous)
+            roles = json.load(open(os.path.join(out, "manifest.json")))["roles"]
+            names = []
+            for key, role in roles.items():
+                spawn = role["codex_spawn"]
+                names.append(spawn["task_name"])
+                self.assertRegex(spawn["task_name"], r"^[a-z0-9_]+$")
+                self.assertTrue(spawn["task_name"].startswith(key + "_"))
+                self.assertEqual(spawn["model"], role["model"])
+                self.assertEqual(spawn["reasoning_effort"], role["effort"])
+                self.assertEqual(spawn["fork_turns"], "none")
+                self.assertEqual("_recheck_" in spawn["task_name"], bool(previous))
+                self.assertTrue(role["label"].startswith(role["name"] + " ("))
+            self.assertEqual(len(names), len(set(names)))
+            prefix = "bugs_review_recheck" if previous else "bugs_review"
+            self.assertEqual(roles["pandora"]["codex_spawn"]["task_name"],
+                             "pandora_" + prefix + "_sol_medium")
+            purpose = "Bugs review recheck" if previous else "Bugs review"
+            self.assertEqual(roles["pandora"]["label"], f"Pandora ({purpose} · Sol medium)")
+            self.assertEqual(roles["proteus"]["codex_spawn"]["reasoning_effort"], "high")
+            self.assertEqual(roles["odysseus"]["codex_spawn"]["reasoning_effort"], "xhigh")
+
+    def test_native_codex_dispatch_does_not_leak_into_other_runtimes(self):
+        for runtime in ("claude", "opencode", "dsh"):
+            _, out = self.run_packet("--runtime", runtime)
+            roles = json.load(open(os.path.join(out, "manifest.json")))["roles"]
+            self.assertTrue(all("codex_spawn" not in role for role in roles.values()))
+
     def test_opencode_runtime_uses_its_own_agents(self):
         out = os.path.join(self.tmp.name, "oc")
         self.assertEqual(review_packet.main(["--repo", self.repo, "--base", "main", "--roles", "pandora,odysseus",
@@ -122,7 +153,7 @@ class ReviewPacketTest(unittest.TestCase):
         self.assertEqual(manifest["security"]["tier"], "athena")
         self.assertEqual(manifest["roles"]["athena"]["model"], "gpt-6.1-sol")
         self.assertEqual(manifest["roles"]["athena"]["effort"], "high")
-        self.assertEqual(manifest["roles"]["athena"]["label"], "Athena · Security review (sensitive) · Sol high")
+        self.assertEqual(manifest["roles"]["athena"]["label"], "Athena (Security review (sensitive) · Sol high)")
         self.assertIn("Athena uses the `athena` row: authentication", open(os.path.join(out, "self-check.md")).read())
 
     def test_legacy_names_produce_new_packet_identities_without_renaming_models(self):
@@ -640,10 +671,10 @@ class MergeFindingsTest(unittest.TestCase):
 
     def test_groups_nearby_findings_and_reports_blocking(self):
         a = self.result("themis", {"role": "guidelines", "head": "abc", "status": "complete", "findings": [
-            {"file": "/repo/AGENTS.md", "line": 10, "severity": "important", "impact": "stale sentence"}]})
+            {"file": "/repo/AGENTS.md", "line": 10, "severity": "important", "blocking_basis": "concrete-impact", "trigger": "Following the new deploy command", "impact": "Drops live data", "evidence": "Command removes the production database"}]})
         b = self.result("mnemosyne", {"role": "comments", "head": "abc", "status": "complete", "findings": [
-            {"file": "AGENTS.md", "line": 12, "severity": "minor", "impact": "same sentence"},
-            {"file": "src/x.ts", "line": 3, "severity": "nit", "impact": "typo"}]}, prose=False)
+            {"file": "AGENTS.md", "line": 12, "severity": "minor", "blocking_basis": "concrete-impact", "trigger": "Following the same command", "impact": "Drops live data", "evidence": "Same destructive command"},
+            {"file": "src/x.ts", "line": 3, "severity": "nit", "blocking_basis": "none", "impact": "Clarifies an optional setting", "evidence": "Current description omits the optional port"}]}, prose=False)
         code = merge_findings.main([a, b, "--head", "abc", "--repo-root", "/repo", "--out", self.tmp.name])
         data = json.load(open(os.path.join(self.tmp.name, "findings.json")))
         self.assertEqual(code, 1)
@@ -651,6 +682,34 @@ class MergeFindingsTest(unittest.TestCase):
         first = data["groups"][0]
         self.assertEqual((first["file"], first["severity"], first["roles"]), ("AGENTS.md", "important", ["comments", "guidelines"]))
         self.assertIn("| G1 | important |", open(os.path.join(self.tmp.name, "findings.md")).read())
+
+    def test_impact_not_severity_controls_blocking(self):
+        cases = [
+            ({"severity": "important", "blocking_basis": "none", "evidence": "Display-name priority violates an ordinary label convention"}, "advisory", 0),
+            ({"severity": "nit", "blocking_basis": "concrete-impact", "trigger": "Authenticated non-admin calls the route", "impact": "Unauthorized write", "evidence": "Changed route removes the role guard"}, "blocking", 1),
+            ({"severity": "minor", "blocking_basis": "merge-requirement", "rule_quote": "Merge requires actor IDs in every audit row", "rule_source": "AGENTS.md:12", "evidence": "Changed insert omits actorId"}, "blocking", 1),
+            ({"severity": "important", "impact": "Legacy label with no separate assessment"}, "unassessed", 1),
+            ({"severity": "nit", "blocking_basis": "none", "evidence": "Caller not supplied", "disposition": "needs_context"}, "unassessed", 1),
+            ({"severity": "important", "blocking_basis": "concrete-impact", "trigger": "", "impact": "", "evidence": ""}, "unassessed", 1),
+        ]
+        for finding, classification, expected in cases:
+            with self.subTest(classification=classification, finding=finding):
+                result = self.result("themis", {"role": "themis", "head": "abc", "status": "complete",
+                    "findings": [{"file": "src/a.ts", "line": 1, **finding}]})
+                self.assertEqual(merge_findings.main([result, "--head", "abc", "--out", self.tmp.name]), expected)
+                data = json.load(open(os.path.join(self.tmp.name, "findings.json")))
+                self.assertEqual(data["groups"][0]["classification"], classification)
+                self.assertEqual(data["groups"][0]["items"][0]["severity"], finding["severity"])
+                self.assertEqual(len(data["summary"][classification + "_groups"]), 1)
+
+    def test_disagreeing_impact_is_not_averaged_away(self):
+        result = self.result("review", {"role": "review", "head": "abc", "status": "complete", "findings": [
+            {"file": "a.ts", "line": 1, "blocking_basis": "none", "evidence": "ordinary audit label"},
+            {"file": "a.ts", "line": 1, "blocking_basis": "concrete-impact", "trigger": "Audit consumer reads actorId", "impact": "Identity lost", "evidence": "consumer source"}]})
+        self.assertEqual(merge_findings.main([result, "--head", "abc", "--out", self.tmp.name]), 1)
+        data = json.load(open(os.path.join(self.tmp.name, "findings.json")))
+        self.assertEqual(data["summary"]["unassessed_groups"], ["G1"])
+        self.assertEqual(len(data["groups"][0]["items"]), 2)
 
     def test_incomplete_or_stale_roles_block_the_gate(self):
         a = self.result("pandora", {"role": "bugs", "head": "old", "status": "complete", "findings": []})

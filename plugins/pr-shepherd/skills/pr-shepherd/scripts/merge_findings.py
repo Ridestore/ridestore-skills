@@ -6,8 +6,8 @@ text around it). Findings in the same file within --window lines are grouped as
 one issue, keeping every reporting role and its evidence. Writes findings.md and
 findings.json next to the first input (or into --out) and prints the summary.
 
-Exit code: 0 when every role completed for --head and nothing is critical or
-important; 1 otherwise (open groups still need dispositions or fixes).
+Exit code: 0 when every role completed for --head and no group is blocking or
+unassessed; 1 otherwise. Evidence and applicability still need coordinator review.
 
   merge_findings.py results/*.json --head <sha>
 """
@@ -64,6 +64,22 @@ def group(findings, window):
     return sorted(groups, key=lambda g: int(g["id"][1:]))
 
 
+def impact_classification(finding):
+    """Structural triage only; a source-grounded coordinator decides semantic truth."""
+    if finding.get("disposition") == "needs_context":
+        return "unassessed"
+    basis = finding.get("blocking_basis")
+    present = lambda key: isinstance(finding.get(key), str) and bool(finding[key].strip())
+    if basis == "concrete-impact" and all(present(key) for key in ("trigger", "impact", "evidence")):
+        return "blocking"
+    if basis == "merge-requirement" and all(present(key) for key in ("rule_quote", "rule_source", "evidence")):
+        return "blocking"
+    if basis == "none" and present("evidence"):
+        return "advisory"
+    # Legacy and malformed results need adjudication, not a fabricated downgrade.
+    return "unassessed"
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("results", nargs="+")
@@ -93,10 +109,17 @@ def main(argv=None):
             findings.append({**f, "role": role, "file": norm_path(f.get("file"), args.repo_root)})
 
     groups = group(findings, args.window)
-    blocking = [g for g in groups if g["severity"] in ("critical", "important")]
+    for g in groups:
+        classes = {impact_classification(item) for item in g["items"]}
+        g["classification"] = "unassessed" if "unassessed" in classes or len(classes) > 1 else next(iter(classes))
+    blocking = [g for g in groups if g["classification"] == "blocking"]
+    unassessed = [g for g in groups if g["classification"] == "unassessed"]
+    advisory = [g for g in groups if g["classification"] == "advisory"]
+    problems.extend(f"{g['id']}: impact evidence missing or conflicting; coordinator adjudication required" for g in unassessed)
     summary = {"roles": roles, "problems": problems, "groups": len(groups), "findings": len(findings),
                "by_severity": {s: sum(1 for g in groups if g["severity"] == s) for s in SEVERITY},
-               "complete": not problems, "blocking_groups": [g["id"] for g in blocking]}
+               "complete": not problems, "blocking_groups": [g["id"] for g in blocking],
+               "advisory_groups": [g["id"] for g in advisory], "unassessed_groups": [g["id"] for g in unassessed]}
 
     out = args.out or os.path.dirname(os.path.abspath(args.results[0]))
     os.makedirs(out, exist_ok=True)
