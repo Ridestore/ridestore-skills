@@ -81,7 +81,9 @@ and review record; do not append a long list of personas to the native name. Nev
 its existing name; start a correctly named child if its purpose/model changes.
 
 If an authorized override or live-catalog substitution changes model or effort,
-update **both** the spawn fields and name before calling. These describe the
+update the spawn fields, native task name **and human label** from the same
+dispatched settings before calling. Use that updated label in progress reports
+and review records. These describe the
 requested dispatch settings, not independently observed execution telemetry;
 record any unavailable telemetry as unknown. Other Codex tool versions may
 expose a display-name field: inspect their actual schema, use the human `label`
