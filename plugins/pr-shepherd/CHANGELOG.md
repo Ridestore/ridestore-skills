@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.6.1
+
+- Codex review packets now include native spawn fields with task names showing
+  the review purpose, full model version, reasoning effort and Greek persona.
+- Apply those names to the actual child call, including rechecks, merged roles
+  and evidence checks; keep names consistent with authorized dispatch overrides.
+  Model selection and the review gates are unchanged.
+
 ## 2.6.0
 
 - Rename review personas and packet role IDs to the Greek roster shared with Pegasus and Observability Hub. Icarus owns performance; Ariadne owns reachability.

@@ -67,6 +67,34 @@ class ReviewPacketTest(unittest.TestCase):
         self.assertIn("Effort is high.", pandora)
         self.assertIn("no other reviewer's findings", open(os.path.join(out, "prompts", "odysseus.md")).read())
 
+    def test_codex_spawn_names_cover_role_model_effort_and_rechecks(self):
+        all_roles = ",".join(review_packet.load_roles())
+        for previous in ([], ["--previous-head", "main"]):
+            _, out = self.run_packet("--runtime", "codex", "--roles", all_roles, *previous)
+            roles = json.load(open(os.path.join(out, "manifest.json")))["roles"]
+            names = []
+            for key, role in roles.items():
+                spawn = role["codex_spawn"]
+                names.append(spawn["task_name"])
+                self.assertRegex(spawn["task_name"], r"^[a-z0-9_]+$")
+                self.assertTrue(spawn["task_name"].endswith("_" + key))
+                self.assertEqual(spawn["model"], role["model"])
+                self.assertEqual(spawn["reasoning_effort"], role["effort"])
+                self.assertEqual(spawn["fork_turns"], "none")
+                self.assertEqual("_recheck_" in spawn["task_name"], bool(previous))
+            self.assertEqual(len(names), len(set(names)))
+            prefix = "bugs_review_recheck" if previous else "bugs_review"
+            self.assertEqual(roles["pandora"]["codex_spawn"]["task_name"],
+                             prefix + "_gpt_6_1_sol_medium_pandora")
+            self.assertEqual(roles["proteus"]["codex_spawn"]["reasoning_effort"], "high")
+            self.assertEqual(roles["odysseus"]["codex_spawn"]["reasoning_effort"], "xhigh")
+
+    def test_native_codex_dispatch_does_not_leak_into_other_runtimes(self):
+        for runtime in ("claude", "opencode", "dsh"):
+            _, out = self.run_packet("--runtime", runtime)
+            roles = json.load(open(os.path.join(out, "manifest.json")))["roles"]
+            self.assertTrue(all("codex_spawn" not in role for role in roles.values()))
+
     def test_opencode_runtime_uses_its_own_agents(self):
         out = os.path.join(self.tmp.name, "oc")
         self.assertEqual(review_packet.main(["--repo", self.repo, "--base", "main", "--roles", "pandora,odysseus",
