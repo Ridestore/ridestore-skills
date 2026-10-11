@@ -77,15 +77,18 @@ class ReviewPacketTest(unittest.TestCase):
                 spawn = role["codex_spawn"]
                 names.append(spawn["task_name"])
                 self.assertRegex(spawn["task_name"], r"^[a-z0-9_]+$")
-                self.assertTrue(spawn["task_name"].endswith("_" + key))
+                self.assertTrue(spawn["task_name"].startswith(key + "_"))
                 self.assertEqual(spawn["model"], role["model"])
                 self.assertEqual(spawn["reasoning_effort"], role["effort"])
                 self.assertEqual(spawn["fork_turns"], "none")
                 self.assertEqual("_recheck_" in spawn["task_name"], bool(previous))
+                self.assertTrue(role["label"].startswith(role["name"] + " ("))
             self.assertEqual(len(names), len(set(names)))
             prefix = "bugs_review_recheck" if previous else "bugs_review"
             self.assertEqual(roles["pandora"]["codex_spawn"]["task_name"],
-                             prefix + "_gpt_6_1_sol_medium_pandora")
+                             "pandora_" + prefix + "_sol_medium")
+            purpose = "Bugs review recheck" if previous else "Bugs review"
+            self.assertEqual(roles["pandora"]["label"], f"Pandora ({purpose} · Sol medium)")
             self.assertEqual(roles["proteus"]["codex_spawn"]["reasoning_effort"], "high")
             self.assertEqual(roles["odysseus"]["codex_spawn"]["reasoning_effort"], "xhigh")
 
@@ -150,7 +153,7 @@ class ReviewPacketTest(unittest.TestCase):
         self.assertEqual(manifest["security"]["tier"], "athena")
         self.assertEqual(manifest["roles"]["athena"]["model"], "gpt-6.1-sol")
         self.assertEqual(manifest["roles"]["athena"]["effort"], "high")
-        self.assertEqual(manifest["roles"]["athena"]["label"], "Athena · Security review (sensitive) · Sol high")
+        self.assertEqual(manifest["roles"]["athena"]["label"], "Athena (Security review (sensitive) · Sol high)")
         self.assertIn("Athena uses the `athena` row: authentication", open(os.path.join(out, "self-check.md")).read())
 
     def test_legacy_names_produce_new_packet_identities_without_renaming_models(self):

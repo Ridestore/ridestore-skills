@@ -3,7 +3,9 @@
 ## 2.6.1
 
 - Codex review packets now include native spawn fields with task names showing
-  the review purpose, full model version, reasoning effort and Greek persona.
+  the Greek persona first, review purpose, short model family and reasoning effort.
+  Human labels use `Name (Role · model effort)`; exact model selectors remain
+  in the dispatch fields. Native task names use the tool's allowed characters.
 - Apply those names to the actual child call, including rechecks, merged roles
   and evidence checks; keep names consistent with authorized dispatch overrides.
   Model selection and the review gates are unchanged.

@@ -15,7 +15,7 @@ does not grant publication authority beyond the user's request.
 
 Before dispatch, show the review tier and role/model plan. Track each planned
 role as queued → running → complete, or failed/incomplete. A spawned call is
-running, not complete. Keep native child IDs, the dispatched task name (purpose, model and reasoning
+running, not complete. Keep native child IDs, the dispatched task name (persona, purpose, short model and reasoning
 effort on Codex), and requested selector, selected
 effort, observed runtime model (or explicitly unknown) in the durable review
 record. A configured alias, agent's self-report, process launch, or empty output

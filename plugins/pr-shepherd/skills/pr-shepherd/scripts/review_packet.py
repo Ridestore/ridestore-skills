@@ -721,14 +721,18 @@ def review_label(name, role, model=None, effort=None, sensitive=False):
     return " · ".join(parts)
 
 
-def codex_dispatch(name, role, model, effort, recheck=False):
-    """Native spawn fields; Codex displays task_name, not a prompt's label."""
+def codex_identity(name, role, model, effort, recheck=False, sensitive=False):
+    """Human label and native fallback name, derived from the same dispatch settings."""
     purpose = role if role.lower().endswith("review") else f"{role} review"
     if recheck:
         purpose += " recheck"
-    task_name = re.sub(r"[^a-z0-9]+", "_", f"{purpose} {model} {effort} {name}".lower()).strip("_")
-    return {"task_name": task_name, "fork_turns": "none",
-            "model": model, "reasoning_effort": effort}
+    if sensitive:
+        purpose += " (sensitive)"
+    display_model = short_model(model)
+    task_name = re.sub(r"[^a-z0-9]+", "_", f"{name} {purpose} {display_model} {effort}".lower()).strip("_")
+    return {"label": f"{name} ({purpose} · {display_model} {effort})",
+            "codex_spawn": {"task_name": task_name, "fork_turns": "none",
+                            "model": model, "reasoning_effort": effort}}
 
 
 def load_matrix(runtime):
@@ -891,8 +895,9 @@ def main(argv=None):
     }
     if args.runtime == "codex":
         for role in manifest["roles"].values():
-            role["codex_spawn"] = codex_dispatch(
-                role["name"], role["role"], role["model"], role["effort"], bool(args.previous_head))
+            role.update(codex_identity(
+                role["name"], role["role"], role["model"], role["effort"],
+                recheck=bool(args.previous_head), sensitive=role["name"] == "Athena"))
     manifest_path = os.path.join(out, "manifest.json")
     with open(manifest_path, "w") as fh:
         json.dump(manifest, fh, indent=2)

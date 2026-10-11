@@ -49,7 +49,8 @@ Describe each call with the role's `label` from `manifest.json`: name, what it
 checks, model and effort ("Pandora · Bugs review · Opus medium"; merged calls join
 them, e.g. "Themis+Mnemosyne · Guidelines and comments review · Sonnet medium"), not
 the PR title. On Codex, also use the generated `codex_spawn.task_name` as the
-actual native call's `task_name`, not just as text in `message`; follow the
+actual native call's `task_name`, not just as text in `message`. Its human
+`label` is `Name (Role · model effort)` with a short model family; follow the
 [Codex naming rules](codex-models.md#dispatch) for rechecks, merged roles and
 evidence agents. The agent type shown beside it is the shared definition. Odysseus gets no other findings or author claims. Evidence agents do get the
 specific findings. Check live identities before dispatch and again before

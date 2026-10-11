@@ -48,14 +48,20 @@ takes precedence. Do not change the coordinator's model or reasoning setting.
 Codex's native `collaboration.spawn_agent` shows `task_name` in the child list.
 A `label` in the manifest, prompt or progress message does not name that child.
 For each call, copy the role's `codex_spawn` fields from `manifest.json` and add
-`message` containing its generated prompt. The name puts the check first, then
-the full model version, reasoning effort and persona. It uses only lowercase
+`message` containing its generated prompt. The human `label` uses
+`Name (Role · model effort)`, for example `Daedalus (Architecture review · Luna xhigh)`.
+Use only the short model family, such as `Luna` or `Sol`, in labels; keep the exact
+model selector in the spawn's `model` field. The native fallback puts the persona
+first, followed by the role, short model and effort. It uses only lowercase
 letters, digits and underscores accepted by this tool; the UI controls spacing
-and capitalization. Do not send an invented `label` or `description` argument.
+and capitalization. This native schema cannot preserve the human label's
+parentheses or middle dot. Use the human label in progress reports and do not
+claim the fallback has that exact visual formatting. Do not send an invented
+`label` or `description` argument.
 
 ```json
 {
-  "task_name": "bugs_review_gpt_6_1_sol_medium_pandora",
+  "task_name": "pandora_bugs_review_sol_medium",
   "fork_turns": "none",
   "model": "gpt-6.1-sol",
   "reasoning_effort": "medium",
@@ -67,9 +73,10 @@ For repeat calls, preserve that descriptive name and append `_r2`, `_r3`, etc.
 `--previous-head` packets also put `recheck` in the generated name. A substantial
 fix still needs the full-diff review required by `local-review.md`; its new call
 gets a round suffix even though the packet has no `--previous-head`.
-For merged roles and evidence calls, spell out the combined purpose using the
-same pattern, for example `guidelines_comments_gpt_6_luna_xhigh_themis_mnemosyne`
-or `verify_findings_gpt_6_luna_xhigh_theseus_aletheia_metis`. Never use just
+For merged roles and evidence calls, keep the lead persona first and use a
+concise combined purpose, for example `themis_guidelines_comments_luna_xhigh`
+or `aletheia_verify_findings_luna_xhigh`. List every covered role in the prompt
+and review record; do not append a long list of personas to the native name. Never use just
 `pandora`, `docs_recheck` or `evidence`. A follow-up on an existing child keeps
 its existing name; start a correctly named child if its purpose/model changes.
 
@@ -77,8 +84,8 @@ If an authorized override or live-catalog substitution changes model or effort,
 update **both** the spawn fields and name before calling. These describe the
 requested dispatch settings, not independently observed execution telemetry;
 record any unavailable telemetry as unknown. Other Codex tool versions may
-expose a display-name field: inspect their actual schema, use the descriptive
-name there, and never assume the native API above has that field.
+expose a display-name field: inspect their actual schema, use the human `label`
+there, and never assume the native API above has that field.
 
 - Respect the host's concurrency limit (with four slots including the
   coordinator, at most three reviewers at once; queue the rest). Wait for every
