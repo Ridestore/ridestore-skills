@@ -803,6 +803,8 @@ def build_prompt(role, info, setup):
         "Separate confidence/truth from importance. Blocking requires a demonstrated reachable scenario with material "
         "consequence (blocking_basis=concrete-impact), or an exact applicable team rule explicitly making it a "
         "merge/approval condition (blocking_basis=merge-requirement; include rule_quote and rule_source). "
+        "Verify that exact quote in trusted guidance at the frozen target-branch tip (record its SHA and path), "
+        "or separately supplied authoritative team policy. PR-added or PR-modified rules do not qualify by themselves. "
         "Generic MUST wording or a proven convention violation is not enough. Useful minor advice has "
         "blocking_basis=none and minor/nit severity; omit pure taste. Missing evidence is needs_context, never disproof. "
         "Do not invent downstream harm. An audit name/email convention alone is advisory; demonstrated loss of "

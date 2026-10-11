@@ -84,7 +84,9 @@ blockers, ask the user about genuine product choices, and recheck until
 nothing blocking remains. From the first round, useful non-blocking advice goes
 in a short optional summary, pure preferences are omitted, and no advisory creates
 an inline thread or REQUEST_CHANGES. Confidence does not establish importance:
-blocking requires concrete harm or an explicit team merge requirement; a substantial fix gets a
+blocking requires concrete harm or an explicit team merge requirement verified
+against the frozen target tip or separately supplied authoritative team policy.
+A PR cannot supply its own merge requirement. A substantial fix gets a
 fresh full-diff pass ([rules 7-8](references/local-review.md#4-reconcile-and-fix)).
 A missing reviewer result is an incomplete
 review, never approval.

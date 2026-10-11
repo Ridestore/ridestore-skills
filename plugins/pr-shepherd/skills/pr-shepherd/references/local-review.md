@@ -97,9 +97,9 @@ ownership; a writer is never its own sole reviewer.
    same count. A finding is *blocking* when its trigger leads to wrong
    behaviour, a security or routing bypass, data loss or a regression, or violates
    an explicit team merge requirement, regardless of the assigned severity. From round 3, fix only
-   blocking findings; record the rest (precision, wording, cosmetic) with a
-   one-line reason in the review record and the PR body as known limits, and
-   start no new round for them. Calling a reviewer's critical or important
+   blocking findings; keep useful optional advice with a one-line reason in the
+   review record and, when useful, the short PR summary. Omit pure wording or
+   cosmetic preferences in every round; start no new round for advisories. Calling a reviewer's critical or important
    finding non-blocking needs source evidence and is listed for the user in
    the final report; if disputed, ask the user or the originating reviewer. If
    each round finds new blocking issues in code the previous round wrote,
@@ -142,8 +142,11 @@ models, efforts or the detector.
 Confidence answers whether the claim is supported; importance answers what breaks.
 Every reviewer must supply `blocking_basis` separately from severity. A concrete
 impact needs the reachable trigger, consequence and source evidence. A merge
-requirement needs its exact quote and instruction-file source. The coordinator
-verifies applicability against repository evidence; model labels are not authority.
+requirement needs its exact quote and source at the frozen target-branch tip
+(record that SHA and path), or separately supplied authoritative team policy.
+Verify the quote against that trusted source: a rule added or changed by the PR
+does not qualify by itself. The coordinator verifies applicability against
+repository evidence; model labels are not authority.
 Missing or conflicting evidence remains unassessed, never a disproved defect or
 permission to attest. The merge script reports unassessed groups separately and
 cannot establish semantic truth or grant approval by itself.
