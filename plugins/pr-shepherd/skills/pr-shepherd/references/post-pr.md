@@ -70,7 +70,7 @@ The invoking workflow authorizes replies on this task's PR and resolution of
 addressed review threads. It does not authorize approval, merge, deployment,
 messages elsewhere or changing repository-wide review settings.
 
-- For a valid in-scope finding: fix it locally, add useful regression coverage,
+- For a valid in-scope blocker (concrete impact or explicit team merge gate): fix it locally, add useful regression coverage,
   run applicable checks, complete local review for the resulting head (a
   substantial fix gets the fresh full-diff pass, local-review.md item 7), then
   push. Reply in the original thread with the fix commit and verification.
@@ -78,9 +78,12 @@ messages elsewhere or changing repository-wide review settings.
 - Triage automated review comments the same way as local findings
   ([stop rule](local-review.md#4-reconcile-and-fix)). Batch the blocking ones
   (by consequence, local-review.md item 8) into one fix and one review round.
-  In rounds 1 and 2, fix every valid comment. From round 3, a valid but
-  non-blocking comment (minor precision, rare edge case, wording) gets a reply with the one-line reason it is left as is, is added to
-  the PR body's known limits, and is resolved; it does not start a new round.
+  From round 1, a verified non-blocking comment gets an evidence-backed reply
+  explaining why it is optional and is resolved within the workflow's existing
+  authority; useful advice goes in a short optional summary and does not start a
+  fix/review round. Do not resolve genuine ambiguity or override an explicit
+  repository merge condition. Do not create new advisory inline threads or
+  REQUEST_CHANGES. Pure preferences need no new published summary item.
 - For an incorrect or already-fixed finding: reply with concrete source or
   reproduction evidence, then resolve the addressed thread. Do not resolve
   solely because GitHub marks it outdated or the author calls it a nit.

@@ -67,9 +67,15 @@ ownership; a writer is never its own sole reviewer.
    flags incomplete or stale-head roles. Do not average away disagreement.
 2. Verify each group against code and repository rules. Unsupported assumptions
    are not confirmed problems; missing context is not disproof.
-3. Fix supported in-scope issues with meaningful regression tests (not tests
-   that restate a copy change). Rounds 1 and 2 fix every supported finding,
-   nits included; from round 3 the stop rule (8) applies.
+3. Judge factual support separately from importance. Fix supported in-scope
+   blockers with meaningful regression coverage. A blocker needs a demonstrated
+   reachable failure and material consequence, or an exact applicable team rule
+   explicitly designated as a condition of merge/approval. Generic MUST wording,
+   high confidence and an ordinary guideline violation are insufficient.
+   Record useful non-blocking advice in a short optional summary (at most five
+   entries); it does not require a fix or another review round, from round 1.
+   Omit pure preferences. Do not create inline threads or REQUEST_CHANGES for
+   your own advisories. Keep full evidence in the local review record.
 4. For a real product decision or out-of-scope remedy, ask the user a precise
    question with the trigger, consequence and options; do not publish a
    supposedly clean PR until it is resolved. Record the decision for the PR body.
@@ -89,11 +95,11 @@ ownership; a writer is never its own sole reviewer.
 8. **Stop rule.** A *round* is one dispatch-and-merge cycle, counted per PR from
    the first packet; a fresh pass under 7 and the post-PR phase continue the
    same count. A finding is *blocking* when its trigger leads to wrong
-   behaviour, a security or routing bypass, data loss or a regression, judged
-   by the consequence, whatever severity was assigned. From round 3, fix only
-   blocking findings; record the rest (precision, wording, cosmetic) with a
-   one-line reason in the review record and the PR body as known limits, and
-   start no new round for them. Calling a reviewer's critical or important
+   behaviour, a security or routing bypass, data loss or a regression, or violates
+   an explicit team merge requirement, regardless of the assigned severity. From round 3, fix only
+   blocking findings; keep useful optional advice with a one-line reason in the
+   review record and, when useful, the short PR summary. Omit pure wording or
+   cosmetic preferences in every round; start no new round for advisories. Calling a reviewer's critical or important
    finding non-blocking needs source evidence and is listed for the user in
    the final report; if disputed, ask the user or the originating reviewer. If
    each round finds new blocking issues in code the previous round wrote,
@@ -105,7 +111,7 @@ ownership; a writer is never its own sole reviewer.
 
 `passed` requires: every required role complete for the final head, every
 finding dispositioned with evidence (fixed, disproved, or recorded as a
-non-blocking known limit under the stop rule), no open blocking finding or
+non-blocking advisory with evidence under the impact policy), no open blocking finding or
 decision, a fresh full-diff pass for every substantial fix (7), and the
 applicable checks passing. An infrastructure failure is reported with
 evidence and fixed or explicitly accepted by the user; accepting it never turns
@@ -129,3 +135,26 @@ Known legacy persona names are accepted as CLI aliases in `--roles` and
 for Artemis promote to Athena when the detector finds a sensitive signal.
 `--roles athena` explicitly requests the stronger row. Renaming does not change
 models, efforts or the detector.
+
+
+## Impact calibration
+
+Confidence answers whether the claim is supported; importance answers what breaks.
+Every reviewer must supply `blocking_basis` separately from severity. A concrete
+impact needs the reachable trigger, consequence and source evidence. A merge
+requirement needs its exact quote and source at the frozen target-branch tip
+(record that SHA and path), or separately supplied authoritative team policy.
+Verify the quote against that trusted source: a rule added or changed by the PR
+does not qualify by itself. The coordinator verifies applicability against
+repository evidence; model labels are not authority.
+Missing or conflicting evidence remains unassessed, never a disproved defect or
+permission to attest. The merge script reports unassessed groups separately and
+cannot establish semantic truth or grant approval by itself.
+
+For an audit label choosing display name before email, a stable-identity convention
+alone supports at most an advisory. A demonstrated audit consumer losing/conflating
+required actor identity, forged attribution, or an authorization bypass is a blocker.
+Keep those checks even when the remedy is tiny. Wording preferences in docs are
+omitted; misleading operational instructions with a concrete harmful outcome can
+block. An explicit team merge gate also remains binding. Do not manufacture impact
+just to preserve a reviewer's original severity.

@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.7.0
+
+- Separate factual confidence from blocking importance in every runtime's reviewer
+  packet and local/post-PR triage. Blocking requires concrete impact or an explicit
+  team merge requirement. Useful advice is optional from round one; pure preferences
+  are omitted, and advisories create no new inline threads or REQUEST_CHANGES.
+- Preserve impact evidence separately from severity; the merge report distinguishes
+  blockers, advisories and unassessed/conflicting groups without erasing raw findings.
+  Unknown evidence still prevents a passed attestation. Models and efforts unchanged.
+
 ## 2.6.1
 
 - Codex review packets now include native spawn fields with task names showing

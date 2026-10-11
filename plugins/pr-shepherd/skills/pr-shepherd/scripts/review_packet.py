@@ -31,6 +31,7 @@ RESULT_SCHEMA = """{"role":"<role>","head":"<head sha>","base":"<merge-base sha>
  "coverage":["<files and callers inspected>"],
  "findings":[{"id":"<role>-1","file":"<repo-relative path>","line":0,
    "severity":"critical|important|minor|nit","disposition":"supported|needs_context",
+   "blocking_basis":"concrete-impact|merge-requirement|none","rule_quote":"","rule_source":"",
    "out_of_scope":false,"trigger":"","impact":"","evidence":"","suggested_fix":"","question":null}],
  "limitations":[]}"""
 
@@ -799,6 +800,16 @@ def build_prompt(role, info, setup):
         "Applicable instructions: " + (", ".join(setup["instructions"]) or "none found"),
         "Inspect changed files fully and relevant unchanged callers. Each finding needs a concrete trigger, impact and "
         "source evidence. Before returning no findings, try a realistic counterexample to each changed guard.",
+        "Separate confidence/truth from importance. Blocking requires a demonstrated reachable scenario with material "
+        "consequence (blocking_basis=concrete-impact), or an exact applicable team rule explicitly making it a "
+        "merge/approval condition (blocking_basis=merge-requirement; include rule_quote and rule_source). "
+        "Verify that exact quote in trusted guidance at the frozen target-branch tip (record its SHA and path), "
+        "or separately supplied authoritative team policy. PR-added or PR-modified rules do not qualify by themselves. "
+        "Generic MUST wording or a proven convention violation is not enough. Useful minor advice has "
+        "blocking_basis=none and minor/nit severity; omit pure taste. Missing evidence is needs_context, never disproof. "
+        "Do not invent downstream harm. An audit name/email convention alone is advisory; demonstrated loss of "
+        "required actor attribution or an authorization bypass remains blocking. Documentation wording preferences "
+        "are omitted; harmful operational instructions can block. Advisories do not require fixes or inline threads.",
     ]
     if role == "odysseus":
         lines.append("You see no other reviewer's findings or author claims; review the complete diff from scratch.")
