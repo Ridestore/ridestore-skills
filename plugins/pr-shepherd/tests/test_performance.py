@@ -29,6 +29,16 @@ class PerformanceRoutingTest(unittest.TestCase):
                 result = review_packet.specialist_signals(f"+++ b/{path}\n{changed}\n post(record);\n")
                 self.assertIn("telemetry volume and sampling", result.get("icarus", {}))
 
+    def test_standard_python_logging_methods_route_in_generic_runtime_paths(self):
+        for receiver in ("logger", "logging"):
+            for method in ("debug", "info", "warning", "error", "critical", "exception", "fatal", "log"):
+                with self.subTest(receiver=receiver, method=method):
+                    line = f"{receiver}.{method}('event sent')"
+                    result = review_packet.specialist_signals(f"+++ b/src/worker.py\n+{line}\n")
+                    self.assertIn("telemetry volume and sampling", result.get("icarus", {}))
+                    self.assertNotIn("icarus", review_packet.specialist_signals(f"+++ b/tests/test_worker.py\n+{line}\n"))
+                    self.assertNotIn("icarus", review_packet.specialist_signals(f"+++ b/src/worker.py\n+# {line}\n"))
+
     def test_fixtures_prose_and_unrelated_stylecreator_do_not_route(self):
         for path, text in [
             ("docs/telemetry.md", "+const sampleRate = 0.1"),

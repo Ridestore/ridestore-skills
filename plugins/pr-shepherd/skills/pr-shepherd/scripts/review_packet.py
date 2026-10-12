@@ -308,7 +308,7 @@ _NET = (r"(?<![\w.$])(?:fetch|axios|got|ky|superagent|undici\.request)\s*\(|\bax
 PERFORMANCE_SIGNALS = {
     "telemetry volume and sampling": (
         r"\b\w*(?:sampl(?:e|ing)[_]?rate|sampl(?:e|ing)[_]?probability|telemetry[_]?enabled|observation[_]?enabled)\w*\b"
-        r"|\b(?:logger|log|console)\.(?:log|info|warn|error|debug|trace)\s*\("
+        r"|\b(?:logger|logging|log|console)\.(?:log|info|warn|warning|error|critical|exception|fatal|debug|trace)\s*\("
         r"|\b(?:telemetry|analytics|metrics|tracer)\.\w+\s*\(|\bsendBeacon\s*\(", IGNORECASE),
     "database query": (_SQL + "|" + _ORM, CASE_SENSITIVE),
     "network call": (_NET, CASE_SENSITIVE),
