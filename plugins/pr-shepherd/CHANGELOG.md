@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.7.2
+
+- Keep Codex reviewer names stable across checks: omit Luna effort, recheck
+  markers and round suffixes while preserving the actual model/effort dispatch.
+- Reuse existing reviewers with follow-up tasks, including full-diff passes after
+  substantial fixes. Keep independent review isolated and only replace children
+  when necessary; do not claim deletion when the host has no removal tool.
+
 ## 2.7.1
 
 - Keep PR descriptions focused on behavior, checks, the review outcome and

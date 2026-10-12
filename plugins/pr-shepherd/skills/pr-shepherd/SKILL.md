@@ -2,7 +2,7 @@
 name: pr-shepherd
 description: Deliver a coding task as a normal, non-draft pull request that has passed a local multi-agent review before the first push, then follow up on review threads and CI. Use for /pr-shepherd, $pr-shepherd, or a request to implement a change and open a locally reviewed PR.
 metadata:
-  version: "2.7.1"
+  version: "2.7.2"
   updated: "2026-10-12"
 ---
 
@@ -78,7 +78,9 @@ that no longer matches the code. Then follow [local review](references/local-rev
 
 One coordinator owns plan, evidence, fixes and delivery. Reviewers are read-only
 native subagents on the same frozen snapshot, each with its scope and what to
-leave to others; queue them in waves if slots are limited. Merge replies with
+leave to others; queue them in waves if slots are limited. On Codex, reuse existing
+matching reviewers for follow-up checks and full-diff passes; keep names stable
+([dispatch](references/codex-models.md#dispatch)). Merge replies with
 `scripts/merge_findings.py`, verify every finding against source, fix confirmed
 blockers, ask the user about genuine product choices, and recheck until
 nothing blocking remains. From the first round, useful non-blocking advice goes

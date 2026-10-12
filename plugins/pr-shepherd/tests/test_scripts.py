@@ -67,8 +67,9 @@ class ReviewPacketTest(unittest.TestCase):
         self.assertIn("Effort is high.", pandora)
         self.assertIn("no other reviewer's findings", open(os.path.join(out, "prompts", "odysseus.md")).read())
 
-    def test_codex_spawn_names_cover_role_model_effort_and_rechecks(self):
+    def test_codex_identity_stays_stable_across_rechecks_and_preserves_dispatch(self):
         all_roles = ",".join(review_packet.load_roles())
+        initial_identities = None
         for previous in ([], ["--previous-head", "main"]):
             _, out = self.run_packet("--runtime", "codex", "--roles", all_roles, *previous)
             roles = json.load(open(os.path.join(out, "manifest.json")))["roles"]
@@ -81,14 +82,21 @@ class ReviewPacketTest(unittest.TestCase):
                 self.assertEqual(spawn["model"], role["model"])
                 self.assertEqual(spawn["reasoning_effort"], role["effort"])
                 self.assertEqual(spawn["fork_turns"], "none")
-                self.assertEqual("_recheck_" in spawn["task_name"], bool(previous))
+                self.assertNotIn("recheck", spawn["task_name"])
+                self.assertNotRegex(spawn["task_name"], r"_r\d+$")
                 self.assertTrue(role["label"].startswith(role["name"] + " ("))
+                if review_packet.short_model(spawn["model"]) == "Luna":
+                    self.assertTrue(spawn["task_name"].endswith("_luna"))
+                    self.assertTrue(role["label"].endswith("· Luna)"))
             self.assertEqual(len(names), len(set(names)))
-            prefix = "bugs_review_recheck" if previous else "bugs_review"
+            identities = {key: (role["label"], role["codex_spawn"]) for key, role in roles.items()}
+            if initial_identities is None:
+                initial_identities = identities
+            else:
+                self.assertEqual(identities, initial_identities)
             self.assertEqual(roles["pandora"]["codex_spawn"]["task_name"],
-                             "pandora_" + prefix + "_sol_medium")
-            purpose = "Bugs review recheck" if previous else "Bugs review"
-            self.assertEqual(roles["pandora"]["label"], f"Pandora ({purpose} · Sol medium)")
+                             "pandora_bugs_review_sol_medium")
+            self.assertEqual(roles["pandora"]["label"], "Pandora (Bugs review · Sol medium)")
             self.assertEqual(roles["proteus"]["codex_spawn"]["reasoning_effort"], "high")
             self.assertEqual(roles["odysseus"]["codex_spawn"]["reasoning_effort"], "xhigh")
 
