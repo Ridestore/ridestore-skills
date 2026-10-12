@@ -2,8 +2,8 @@
 name: pr-shepherd
 description: Deliver a coding task as a normal, non-draft pull request that has passed a local multi-agent review before the first push, then follow up on review threads and CI. Use for /pr-shepherd, $pr-shepherd, or a request to implement a change and open a locally reviewed PR.
 metadata:
-  version: "2.7.0"
-  updated: "2026-10-11"
+  version: "2.7.1"
+  updated: "2026-10-12"
 ---
 
 # PR Shepherd
@@ -98,10 +98,10 @@ review, never approval.
    after review needs another applicable review; so do rebase/merge conflicts.
 2. Reuse an appropriate open PR; never push to a merged PR's branch.
 3. Push only the reviewed branch; create a normal non-draft PR with a body file.
-4. PR body: behavior, checks, reviewed head and base SHAs, the roles that ran with
-   model, effort, tokens and duration, the outcome, decisions the user made, and
-   limitations. No local paths, raw logs or secrets. Configured models are not
-   evidence that they ran.
+4. PR body: behavior, checks, a brief review outcome, relevant decisions the user
+   made, and limitations. Keep agent rosters, model/effort settings, token usage,
+   duration and missing-telemetry placeholders out of the PR description; those
+   belong in the local review record. No local paths, raw logs or secrets.
 5. Only if the repository configures an attestation label and the exact pushed
    head passed the complete review, follow [attestation](references/attestation.md);
    create the label if missing; report label failures; remove the attestation

@@ -61,9 +61,9 @@ A plain request that asks for this workflow also triggers it.
    rest become known limits, and a substantial fix gets a fresh full-diff pass). A reviewer that didn't return means the review is
    incomplete, not approved.
 6. **Publish.** Pushes only the reviewed head and opens a normal PR. The PR body
-   records the reviewed SHAs, which roles and models actually ran with their
-   tokens and duration, decisions you made along the way, the checks and any
-   limitations.
+   explains the behavior change, checks, a brief review outcome, relevant
+   decisions and limitations. Agent rosters, model settings and usage statistics
+   stay in the local review record.
 7. **Follow up.** About five minutes after the PR opens, it reads review
    threads, comments and checks. It fixes what is blocking (with another
    local review before each push), replies with evidence and resolves the
