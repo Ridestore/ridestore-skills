@@ -723,15 +723,14 @@ def review_label(name, role, model=None, effort=None, sensitive=False):
 
 
 def codex_identity(name, role, model, effort, recheck=False, sensitive=False):
-    """Human label and native fallback name, derived from the same dispatch settings."""
+    """Stable reviewer identity; phase and Luna effort stay out of display names."""
     purpose = role if role.lower().endswith("review") else f"{role} review"
-    if recheck:
-        purpose += " recheck"
     if sensitive:
         purpose += " (sensitive)"
     display_model = short_model(model)
-    task_name = re.sub(r"[^a-z0-9]+", "_", f"{name} {purpose} {display_model} {effort}".lower()).strip("_")
-    return {"label": f"{name} ({purpose} · {display_model} {effort})",
+    display_settings = display_model if display_model == "Luna" else f"{display_model} {effort}"
+    task_name = re.sub(r"[^a-z0-9]+", "_", f"{name} {purpose} {display_settings}".lower()).strip("_")
+    return {"label": f"{name} ({purpose} · {display_settings})",
             "codex_spawn": {"task_name": task_name, "fork_turns": "none",
                             "model": model, "reasoning_effort": effort}}
 

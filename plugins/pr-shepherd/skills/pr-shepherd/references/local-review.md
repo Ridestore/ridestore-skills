@@ -50,8 +50,10 @@ checks, model and effort ("Pandora · Bugs review · Opus medium"; merged calls 
 them, e.g. "Themis+Mnemosyne · Guidelines and comments review · Sonnet medium"), not
 the PR title. On Codex, also use the generated `codex_spawn.task_name` as the
 actual native call's `task_name`, not just as text in `message`. Its human
-`label` is `Name (Role · model effort)` with a short model family; follow the
-[Codex naming rules](codex-models.md#dispatch) for rechecks, merged roles and
+`label` uses a short model family and omits Luna effort. Reuse the same Codex
+reviewer for subsequent checks with `collaboration.followup_task`; keep round
+and phase markers out of names. Follow the
+[Codex naming and reuse rules](codex-models.md#dispatch) for rechecks, merged roles and
 evidence agents. The agent type shown beside it is the shared definition. Odysseus gets no other findings or author claims. Evidence agents do get the
 specific findings. Check live identities before dispatch and again before
 accepting results; a changed snapshot invalidates affected results.
@@ -91,7 +93,9 @@ ownership; a writer is never its own sole reviewer.
    the fixes of all rounds together, so splitting does not avoid it. When in
    doubt, it is substantial. Then an incremental check is not enough: rebuild
    the packet without `--previous-head` and run Odysseus fresh on the whole diff,
-   plus every specialist the new code signals, as well as Pandora.
+   plus every specialist the new code signals, as well as Pandora. On Codex,
+   reuse the existing matching reviewers for this full-diff pass; a new pass
+   does not require spawning new children.
 8. **Stop rule.** A *round* is one dispatch-and-merge cycle, counted per PR from
    the first packet; a fresh pass under 7 and the post-PR phase continue the
    same count. A finding is *blocking* when its trigger leads to wrong
