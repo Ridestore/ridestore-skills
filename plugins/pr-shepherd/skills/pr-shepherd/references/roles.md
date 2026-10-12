@@ -74,7 +74,7 @@ NAME`; it adds, never replaces). Otherwise routine Artemis (input validation,
 sanitization or injection checks in one component, dependency bumps, sensitive
 logging). When unsure, use Athena. The coordinator may raise routine to Athena
 with a stated reason, never lower a detected Athena, and names the decision and
-its matches in the plan and the PR body.
+its matches in the plan and the local review record.
 
 **Icarus, Hephaestus and Palamedes are also routed by signals, not by judgement.**
 `review_packet.py` adds each one to the plan when the change under review (the
@@ -113,8 +113,8 @@ ROLE:NAME=REGEX`, matched against changed paths and added lines (for example a
 hot internal client or a hot directory for Icarus); they are recorded as `repo:
 NAME` and add to the built-in signals, never replace one. The coordinator may
 add a specialist with a stated reason, never drop a signalled one, and names the
-decision and its matches in the plan and the PR body. Do not run specialists
-without a signal or reason only to fill a matrix. Downstream review settings and
+decision and its matches in the plan and the local review record. Do not run
+specialists without a signal or reason only to fill a matrix. Downstream review settings and
 the optional attestation label never lower this profile. Pandora and Odysseus are
 always distinct first-pass calls.
 

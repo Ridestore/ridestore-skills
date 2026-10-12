@@ -28,9 +28,12 @@ minute; use bounded waits so the coordinator remains responsive. Summarize the
 reason for the wait when no new result exists, without inventing progress or a
 percentage. Quiet scheduled post-PR polls follow post-pr.md instead.
 
-When a role finishes, show its tokens and duration from the completion report
-next to its result, and a running total for the review. The PR body lists them
-per role, so the cost of a review is visible.
+When a role finishes, show available tokens and duration from the completion
+report next to its result in the current conversation. Only show a review total
+when all completed calls supplied the relevant metric. Omit missing metrics
+from progress updates; preserve telemetry gaps in the local review record.
+Keep this operational detail out of the PR body, which needs only a brief
+review outcome and relevant limitations.
 
 Example: “Local review: 3/6 roles complete (Pandora 220k tokens, 6 min; Proteus 99k,
 2 min; Themis 165k, 4 min). Pandora found an error path; Daedalus and Proteus's results are

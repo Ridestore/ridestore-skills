@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.7.1
+
+- Keep PR descriptions focused on behavior, checks, the review outcome and
+  relevant decisions or limitations. Keep agent rosters, model settings,
+  token usage, duration and routing details in the local review record.
+- Omit missing telemetry from progress updates instead of filling them with
+  placeholders; show totals only when the corresponding metrics are complete.
+
 ## 2.7.0
 
 - Separate factual confidence from blocking importance in every runtime's reviewer
