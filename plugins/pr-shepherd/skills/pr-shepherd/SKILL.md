@@ -2,7 +2,7 @@
 name: pr-shepherd
 description: Deliver a coding task as a normal, non-draft pull request that has passed a local multi-agent review before the first push, then follow up on review threads and CI. Use for /pr-shepherd, $pr-shepherd, or a request to implement a change and open a locally reviewed PR.
 metadata:
-  version: "2.7.2"
+  version: "2.8.0"
   updated: "2026-10-12"
 ---
 
@@ -72,6 +72,9 @@ in the PR, and **never attest a review that did not run**. When unsure, review.
 
 Build the packet with `scripts/review_packet.py` (frozen SHAs, full diff,
 instruction files, per-role prompts) and pass every replaced value as `--stale`.
+For volume-sensitive changes include workload evidence (`PERFORMANCE.md` at HEAD
+or `--performance-context FILE`) and use the [performance assessment](references/performance.md);
+missing material scale/budget evidence is unassessed, not a clean result.
 Fix what the self-check finds **before** dispatching: stale terms, missing
 required docs, logs or journals that do not report what is actually sent, prose
 that no longer matches the code. Then follow [local review](references/local-review.md).

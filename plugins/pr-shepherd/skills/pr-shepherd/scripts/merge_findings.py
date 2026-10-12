@@ -9,15 +9,23 @@ findings.json next to the first input (or into --out) and prints the summary.
 Exit code: 0 when every role completed for --head and no group is blocking or
 unassessed; 1 otherwise. Evidence and applicability still need coordinator review.
 
-  merge_findings.py results/*.json --head <sha>
+  merge_findings.py results/*.json --manifest <packet>/manifest.json --head <sha>
 """
 
 import argparse
 import json
 import os
 import sys
+from review_packet import LEGACY_ROLES
 
 SEVERITY = ["critical", "important", "minor", "low", "nit"]
+
+
+def canonical_role(value):
+    if not isinstance(value, str):
+        return ""
+    value = value.strip().lower()
+    return "icarus" if value == "performance" else LEGACY_ROLES.get(value, value)
 
 
 def extract_json(text):
@@ -83,30 +91,63 @@ def impact_classification(finding):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("results", nargs="+")
+    ap.add_argument("--manifest", required=True, help="frozen packet manifest; required roles cannot be inferred from supplied results")
     ap.add_argument("--head", help="frozen head SHA every result must name")
     ap.add_argument("--repo-root", action="append", default=[], help="absolute prefix to strip from paths")
     ap.add_argument("--window", type=int, default=5, help="lines apart that still count as one issue")
     ap.add_argument("--out")
     args = ap.parse_args(argv)
 
+    try:
+        with open(args.manifest, encoding="utf-8") as fh:
+            manifest = json.load(fh)
+        required_roles = manifest["roles"]
+        expected_head = manifest["head"]
+        if not isinstance(required_roles, dict) or not required_roles or not isinstance(expected_head, str) or not expected_head:
+            raise ValueError("manifest requires nonempty roles and head")
+        expected_roles = {canonical_role(role) for role in required_roles}
+        if "" in expected_roles or len(expected_roles) != len(required_roles):
+            raise ValueError("invalid or duplicate canonical roles in manifest")
+        if args.head and args.head != expected_head:
+            raise ValueError("--head differs from frozen manifest")
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise SystemExit(f"invalid review manifest: {exc}")
+
     roles, findings, problems = [], [], []
+    seen = set()
     for path in args.results:
         try:
             result = extract_json(open(path, encoding="utf-8").read())
         except (OSError, ValueError) as exc:
             problems.append(f"{path}: unreadable result ({exc})")
             continue
-        role = result.get("role", os.path.splitext(os.path.basename(path))[0])
+        role = canonical_role(result.get("role", os.path.splitext(os.path.basename(path))[0]))
+        if not role or role not in expected_roles:
+            problems.append(f"{path}: unexpected role {role!r}; must match the frozen manifest")
+        if role in seen:
+            problems.append(f"{role}: duplicate result")
+        seen.add(role)
         status = result.get("status", "incomplete")
-        stale = bool(args.head) and result.get("head") not in (None, args.head)
+        stale = result.get("head") != expected_head
         roles.append({"role": role, "status": status, "head": result.get("head"), "stale": stale,
                       "findings": len(result.get("findings") or []), "limitations": result.get("limitations") or []})
         if status != "complete":
             problems.append(f"{role}: status {status}")
         if stale:
-            problems.append(f"{role}: reviewed {result.get('head')}, not {args.head}")
+            problems.append(f"{role}: reviewed {result.get('head')}, not {expected_head}")
+        if role == "icarus":
+            assessment = result.get("performance_assessment")
+            roles[-1]["performance_assessment"] = assessment
+            valid = isinstance(assessment, dict)
+            state = assessment.get("status") if valid else None
+            required = ("reason", "volume_estimate", "budget_basis") if state == "assessed" else ("reason",)
+            if state not in ("assessed", "not_applicable") or not all(
+                    isinstance(assessment.get(k), str) and assessment[k].strip() for k in required):
+                problems.append(f"{role}: aggregate performance assessment missing, unassessed or invalid; resolve material workload/budget questions")
         for f in result.get("findings") or []:
             findings.append({**f, "role": role, "file": norm_path(f.get("file"), args.repo_root)})
+
+    problems.extend(f"{role}: required result missing" for role in sorted(expected_roles - seen))
 
     groups = group(findings, args.window)
     for g in groups:
@@ -131,6 +172,11 @@ def main(argv=None):
         fh.writelines(f"| {r['role']} | {r['status']}{' (stale head)' if r['stale'] else ''} | {r['findings']} |\n" for r in roles)
         if problems:
             fh.write("\n**Review incomplete:** " + "; ".join(problems) + "\n")
+        for role in roles:
+            if isinstance(role.get("performance_assessment"), dict):
+                fh.write("\n## Performance assessment\n\n")
+                for key, value in role["performance_assessment"].items():
+                    fh.write(f"- {key}: {value}\n")
         fh.write("\n| Group | Severity | Roles | Location | Issue | Disposition |\n| --- | --- | --- | --- | --- | --- |\n")
         for g in groups:
             first = g["items"][0]
