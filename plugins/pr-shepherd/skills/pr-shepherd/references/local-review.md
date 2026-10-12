@@ -89,7 +89,10 @@ ownership; a writer is never its own sole reviewer.
    The manifest is required; never rebuild its expected role list from returned
    replies, since an omitted reviewer would disappear from the gate. Do not average away disagreement.
 2. Verify each group against code and repository rules. Unsupported assumptions
-   are not confirmed problems; missing context is not disproof.
+   are not confirmed problems; missing context is not disproof. Verify Icarus's
+   volume estimate and budget basis against the cited sources, including dates,
+   units and scope. A PR-controlled workload profile and a syntactically complete
+   assessment are not independent evidence; the merger only validates the protocol.
 3. Judge factual support separately from importance. Fix supported in-scope
    blockers with meaningful regression coverage. A blocker needs a demonstrated
    reachable failure and material consequence, or an exact applicable team rule

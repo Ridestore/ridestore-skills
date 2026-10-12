@@ -92,9 +92,11 @@ snapshots and translation or data files are ignored.
   `memo`, dynamic imports, observers, scroll listeners) and runtime/build limits
   (PM2, Kubernetes, Wrangler, bundler config). CI workflows, container files,
   styles and package manifests are left to Palamedes, and deleting a file routes no
-  specialist. Telemetry emission/logging and sampling-rate changes also route Icarus,
+  specialist. Recognized telemetry/logging calls and named sampling-rate signals also route Icarus,
   including removed gates and changes in telemetry/analytics/tracking/observability paths
-  whose transport is unchanged. Full-line comments do not trigger this extra route; inline mentions may
+  whose transport is unchanged. This is a heuristic: custom wrappers and inline numeric
+  sampling thresholds in neutral paths may need an explicit Icarus role or a
+  repository-specific signal. The coordinator checks that routing matches the diff. Full-line comments do not trigger this extra route; inline mentions may
   conservatively route a reviewer.
 - **Hephaestus (code quality):** in source files, 150+ added lines in one file, a new
   file of 300+ lines, 400+ added lines in total, 10+ files, five or more added

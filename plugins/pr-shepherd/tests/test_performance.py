@@ -93,6 +93,8 @@ class WorkloadPacketTest(unittest.TestCase):
             self.assertIn("100000 eligible windows/day", prompt)
             self.assertNotIn("WRONG", prompt)
             self.assertIn(context["sha256"], prompt)
+            self.assertIn(json.dumps(context, ensure_ascii=True), prompt)
+            self.assertIn("PR-controlled claims", prompt)
         prompt = open(os.path.join(out, "prompts", "icarus.md")).read()
         for contract in ("performance_assessment", "unassessed", "per location", "0.01%", "not instructions"):
             self.assertIn(contract, prompt)
