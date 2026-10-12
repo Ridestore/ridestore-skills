@@ -105,6 +105,15 @@ def main(argv=None):
             problems.append(f"{role}: status {status}")
         if stale:
             problems.append(f"{role}: reviewed {result.get('head')}, not {args.head}")
+        if role in ("icarus", "ruby", "performance"):
+            assessment = result.get("performance_assessment")
+            roles[-1]["performance_assessment"] = assessment
+            valid = isinstance(assessment, dict)
+            state = assessment.get("status") if valid else None
+            required = ("reason", "volume_estimate", "budget_basis") if state == "assessed" else ("reason",)
+            if state not in ("assessed", "not_applicable") or not all(
+                    isinstance(assessment.get(k), str) and assessment[k].strip() for k in required):
+                problems.append(f"{role}: aggregate performance assessment missing, unassessed or invalid; resolve material workload/budget questions")
         for f in result.get("findings") or []:
             findings.append({**f, "role": role, "file": norm_path(f.get("file"), args.repo_root)})
 
@@ -131,6 +140,11 @@ def main(argv=None):
         fh.writelines(f"| {r['role']} | {r['status']}{' (stale head)' if r['stale'] else ''} | {r['findings']} |\n" for r in roles)
         if problems:
             fh.write("\n**Review incomplete:** " + "; ".join(problems) + "\n")
+        for role in roles:
+            if isinstance(role.get("performance_assessment"), dict):
+                fh.write("\n## Performance assessment\n\n")
+                for key, value in role["performance_assessment"].items():
+                    fh.write(f"- {key}: {value}\n")
         fh.write("\n| Group | Severity | Roles | Location | Issue | Disposition |\n| --- | --- | --- | --- | --- | --- |\n")
         for g in groups:
             first = g["items"][0]

@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.8.0
+
+- Route telemetry emission, sampling and telemetry-path eligibility changes to
+  Icarus, including removal of volume controls with unchanged transport.
+- Freeze aggregate workload evidence from HEAD:PERFORMANCE.md or an explicit
+  input and deliver it to performance and independent reviewers with provenance.
+- Require an aggregate volume/budget assessment from Icarus. Missing or unassessed
+  evidence prevents the merged gate from passing, even with no findings; old
+  Icarus results need a follow-up. Keep abuse ceilings distinct from normal cost
+  and statistical sample size. Models and remote Pegasus configuration unchanged.
+
 ## 2.7.2
 
 - Keep Codex reviewer names stable across checks: omit Luna effort, recheck

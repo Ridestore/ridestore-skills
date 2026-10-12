@@ -236,6 +236,7 @@ class ReviewPacketTest(unittest.TestCase):
     # One added line per documented line signal; each must route its role. Path
     # signals are in PATH_CASES, and every built-in signal name must have a case.
     SIGNAL_CASES = [
+        ("icarus", "telemetry volume and sampling", "src/a.ts", "const HUMAN_SAMPLE_RATE = 0.001"),
         ("icarus", "database query", "src/a.ts", "const r = await db.query('SELECT id FROM runs WHERE repo = $1', [repo])"),
         ("icarus", "network call", "src/a.py", "resp = requests.get(url, timeout=5)"),
         ("icarus", "concurrency and resource limits", "src/a.ts", "const limit = pLimit(4)"),

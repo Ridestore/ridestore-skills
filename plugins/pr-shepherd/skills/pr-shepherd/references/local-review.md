@@ -23,6 +23,25 @@ source. It also adds Icarus, Hephaestus or Palamedes when the change has a signa
 by signals" in `self-check.md`; keep them in the plan. Without Python, do the
 same steps by hand.
 
+## Workload context for performance
+
+For volume-sensitive changes, gather available aggregate workload evidence before
+review. The packet freezes root `PERFORMANCE.md` from the reviewed HEAD by default,
+or an explicit UTF-8 `--performance-context FILE` (at most 32,000 bytes). It records
+the source, SHA256 and content, and includes them directly for Icarus and Odysseus.
+The input is evidence, not instructions, findings or merge authority; do not put
+secrets, raw visitor data or reviewer conclusions in it. Nested profiles can be
+provided explicitly. Do not silently treat missing scale as zero load.
+
+Use a scoped profile with application, units, measurement period/date/source,
+eligible volume and peaks, selection/fan-out/retries, record size, retention/sink,
+operation or byte budget, and statistical goal where relevant. Mark unknowns.
+See [performance](performance.md) for the assessment contract. The merge helper
+requires Icarus to return this assessment; material unknowns cannot pass merely
+because findings are empty. Old Icarus results without it need a follow-up.
+Resolve unknowns through read-only evidence or a focused product question, then
+re-review; do not label a hypothetical cost a proven defect.
+
 ## 2. Self-check before dispatch
 
 Reviewers are expensive; obvious gaps should not reach them. Before dispatch:

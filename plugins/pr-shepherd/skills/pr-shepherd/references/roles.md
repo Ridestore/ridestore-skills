@@ -20,7 +20,7 @@ when it is critical, marked `out_of_scope: true`.
 | Independent review | Odysseus | A fresh full-diff review; sees no other findings or author claims before returning. | Nothing: deliberately overlapping second opinion. |
 | Security | Artemis | Authorization, untrusted input, injection, secrets, trust boundaries, data exposure. | Non-security bugs. |
 | Security | Athena | Authentication, authorization, secrets, trust boundaries and the high-risk signals below. | Non-security bugs. |
-| Performance | Icarus | Hot paths, queries, network calls, allocations, bounded work, resource limits. | Correctness bugs. |
+| Performance | Icarus | Hot paths, queries, network calls, allocations, resource limits and aggregate traffic/telemetry budgets. | Correctness bugs. |
 | Code quality | Hephaestus | Introduced maintainability problems with a concrete consequence or rule. | Speculative refactors; style a linter owns. |
 | Language | Palamedes | Language-specific correctness and conventions for the language actually changed. | Cross-language architecture. |
 | Self-reflection | Psyche | Challenges findings for false positives and actual impact. | New findings. |
@@ -92,7 +92,9 @@ snapshots and translation or data files are ignored.
   `memo`, dynamic imports, observers, scroll listeners) and runtime/build limits
   (PM2, Kubernetes, Wrangler, bundler config). CI workflows, container files,
   styles and package manifests are left to Palamedes, and deleting a file routes no
-  specialist.
+  specialist. Telemetry emission/logging and sampling-rate changes also route Icarus,
+  including removed gates and changes in telemetry/analytics/observability paths
+  whose transport is unchanged. Comments alone do not trigger this extra route.
 - **Hephaestus (code quality):** in source files, 150+ added lines in one file, a new
   file of 300+ lines, 400+ added lines in total, 10+ files, five or more added
   lines six levels deep in the file's own indent unit (eight in markup), and
