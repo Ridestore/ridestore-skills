@@ -93,8 +93,9 @@ snapshots and translation or data files are ignored.
   (PM2, Kubernetes, Wrangler, bundler config). CI workflows, container files,
   styles and package manifests are left to Palamedes, and deleting a file routes no
   specialist. Telemetry emission/logging and sampling-rate changes also route Icarus,
-  including removed gates and changes in telemetry/analytics/observability paths
-  whose transport is unchanged. Comments alone do not trigger this extra route.
+  including removed gates and changes in telemetry/analytics/tracking/observability paths
+  whose transport is unchanged. Full-line comments do not trigger this extra route; inline mentions may
+  conservatively route a reviewer.
 - **Hephaestus (code quality):** in source files, 150+ added lines in one file, a new
   file of 300+ lines, 400+ added lines in total, 10+ files, five or more added
   lines six levels deep in the file's own indent unit (eight in markup), and

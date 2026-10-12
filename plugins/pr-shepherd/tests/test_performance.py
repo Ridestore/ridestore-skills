@@ -19,6 +19,7 @@ class PerformanceRoutingTest(unittest.TestCase):
             ("src/config.ts", "+const humanSampleRate = 0.0001"),
             ("src/analytics/client.ts", "+if (!eligible) return;"),
             ("src/analytics/client.ts", "-if (!eligible) return;"),
+            ("src/services/tracking/zaraz.ts", "-if (!observationEligible) return;"),
             ("src/config.ts", "-const sampling_probability = 0.001;"),
             ("src/worker.ts", "+logger.info(record)"),
             ("src/worker.ts", "+navigator.sendBeacon(url, record)"),
@@ -115,9 +116,40 @@ class WorkloadPacketTest(unittest.TestCase):
 
 
 class PerformanceGateTest(unittest.TestCase):
+    def test_required_manifest_roles_and_head_cannot_be_omitted_or_disguised(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest = os.path.join(directory, "manifest.json")
+            write(manifest, json.dumps({"head": "abc", "roles": {"icarus": {}, "pandora": {}}}))
+            pandora = os.path.join(directory, "pandora.json")
+            write(pandora, json.dumps({"role": "pandora", "head": "abc", "status": "complete", "findings": []}))
+            icarus = os.path.join(directory, "icarus.json")
+            for role, head, assessment, expected in [
+                ("Icarus", "abc", None, 1),
+                ("icarus ", "abc", None, 1),
+                ("ruby", "abc", None, 1),
+                ("performance", "abc", None, 1),
+                ("unknown-reviewer", "abc", {"status": "not_applicable", "reason": "No aggregate work"}, 1),
+                ("icarus", None, {"status": "not_applicable", "reason": "No aggregate work"}, 1),
+                (" Icarus ", "abc", {"status": "not_applicable", "reason": "No aggregate work"}, 0),
+            ]:
+                with self.subTest(role=role, head=head, assessment=assessment):
+                    write(icarus, json.dumps({"role": role, "head": head, "status": "complete", "findings": [],
+                                             "performance_assessment": assessment}))
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        self.assertEqual(merge_findings.main([pandora, icarus, "--manifest", manifest, "--out", directory]), expected)
+            for paths in ([pandora], [pandora, icarus, icarus]):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(merge_findings.main([*paths, "--manifest", manifest, "--out", directory]), 1)
+            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                merge_findings.main([pandora])
+            with self.assertRaises(SystemExit):
+                merge_findings.main([pandora, "--manifest", manifest, "--head", "wrong"])
+
     def test_empty_findings_cannot_hide_missing_volume_assessment(self):
         with tempfile.TemporaryDirectory() as directory:
             path = os.path.join(directory, "icarus.json")
+            manifest = os.path.join(directory, "manifest.json")
+            write(manifest, json.dumps({"head": "abc", "roles": {"icarus": {}}}))
             for assessment, expected in [
                 (None, 1),
                 ({"status": "unassessed", "reason": "Eligible windows/day and budget unknown"}, 1),
@@ -131,7 +163,7 @@ class PerformanceGateTest(unittest.TestCase):
                     write(path, json.dumps({"role": "icarus", "head": "abc", "status": "complete", "findings": [],
                                             "performance_assessment": assessment}))
                     with contextlib.redirect_stdout(io.StringIO()):
-                        self.assertEqual(merge_findings.main([path, "--head", "abc", "--out", directory]), expected)
+                        self.assertEqual(merge_findings.main([path, "--manifest", manifest, "--head", "abc", "--out", directory]), expected)
                     data = json.load(open(os.path.join(directory, "findings.json")))
                     self.assertEqual(data["summary"]["roles"][0]["performance_assessment"], assessment)
                     self.assertEqual(data["summary"]["complete"], expected == 0)

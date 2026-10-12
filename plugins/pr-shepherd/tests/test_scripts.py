@@ -2,6 +2,7 @@
 
 import json
 import os
+from pathlib import Path
 import re
 import subprocess
 import sys
@@ -672,6 +673,13 @@ class MergeFindingsTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def merge(self, args):
+        paths = args[:next((i for i, arg in enumerate(args) if arg.startswith('--')), len(args))]
+        roles = {merge_findings.extract_json(Path(p).read_text())["role"]: {} for p in paths}
+        manifest = os.path.join(self.tmp.name, "manifest.json")
+        write(manifest, json.dumps({"head": "abc", "roles": roles}))
+        return merge_findings.main([*args, "--manifest", manifest])
+
     def result(self, name, body, prose=True):
         path = os.path.join(self.tmp.name, f"{name}.txt")
         text = json.dumps(body)
@@ -684,7 +692,7 @@ class MergeFindingsTest(unittest.TestCase):
         b = self.result("mnemosyne", {"role": "comments", "head": "abc", "status": "complete", "findings": [
             {"file": "AGENTS.md", "line": 12, "severity": "minor", "blocking_basis": "concrete-impact", "trigger": "Following the same command", "impact": "Drops live data", "evidence": "Same destructive command"},
             {"file": "src/x.ts", "line": 3, "severity": "nit", "blocking_basis": "none", "impact": "Clarifies an optional setting", "evidence": "Current description omits the optional port"}]}, prose=False)
-        code = merge_findings.main([a, b, "--head", "abc", "--repo-root", "/repo", "--out", self.tmp.name])
+        code = self.merge([a, b, "--head", "abc", "--repo-root", "/repo", "--out", self.tmp.name])
         data = json.load(open(os.path.join(self.tmp.name, "findings.json")))
         self.assertEqual(code, 1)
         self.assertEqual(data["summary"]["groups"], 2)
@@ -705,7 +713,7 @@ class MergeFindingsTest(unittest.TestCase):
             with self.subTest(classification=classification, finding=finding):
                 result = self.result("themis", {"role": "themis", "head": "abc", "status": "complete",
                     "findings": [{"file": "src/a.ts", "line": 1, **finding}]})
-                self.assertEqual(merge_findings.main([result, "--head", "abc", "--out", self.tmp.name]), expected)
+                self.assertEqual(self.merge([result, "--head", "abc", "--out", self.tmp.name]), expected)
                 data = json.load(open(os.path.join(self.tmp.name, "findings.json")))
                 self.assertEqual(data["groups"][0]["classification"], classification)
                 self.assertEqual(data["groups"][0]["items"][0]["severity"], finding["severity"])
@@ -715,7 +723,7 @@ class MergeFindingsTest(unittest.TestCase):
         result = self.result("review", {"role": "review", "head": "abc", "status": "complete", "findings": [
             {"file": "a.ts", "line": 1, "blocking_basis": "none", "evidence": "ordinary audit label"},
             {"file": "a.ts", "line": 1, "blocking_basis": "concrete-impact", "trigger": "Audit consumer reads actorId", "impact": "Identity lost", "evidence": "consumer source"}]})
-        self.assertEqual(merge_findings.main([result, "--head", "abc", "--out", self.tmp.name]), 1)
+        self.assertEqual(self.merge([result, "--head", "abc", "--out", self.tmp.name]), 1)
         data = json.load(open(os.path.join(self.tmp.name, "findings.json")))
         self.assertEqual(data["summary"]["unassessed_groups"], ["G1"])
         self.assertEqual(len(data["groups"][0]["items"]), 2)
@@ -723,14 +731,14 @@ class MergeFindingsTest(unittest.TestCase):
     def test_incomplete_or_stale_roles_block_the_gate(self):
         a = self.result("pandora", {"role": "bugs", "head": "old", "status": "complete", "findings": []})
         b = self.result("proteus", {"role": "types", "head": "abc", "status": "incomplete", "findings": []})
-        self.assertEqual(merge_findings.main([a, b, "--head", "abc", "--out", self.tmp.name]), 1)
+        self.assertEqual(self.merge([a, b, "--head", "abc", "--out", self.tmp.name]), 1)
         summary = json.load(open(os.path.join(self.tmp.name, "findings.json")))["summary"]
         self.assertFalse(summary["complete"])
         self.assertEqual(len(summary["problems"]), 2)
 
     def test_clean_complete_review_passes(self):
         a = self.result("pandora", {"role": "bugs", "head": "abc", "status": "complete", "findings": []})
-        self.assertEqual(merge_findings.main([a, "--head", "abc", "--out", self.tmp.name]), 0)
+        self.assertEqual(self.merge([a, "--head", "abc", "--out", self.tmp.name]), 0)
 
 
 class OpenCodeProfileTest(unittest.TestCase):

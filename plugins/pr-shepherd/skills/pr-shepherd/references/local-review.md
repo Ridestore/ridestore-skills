@@ -83,9 +83,11 @@ ownership; a writer is never its own sole reviewer.
 ## 4. Reconcile and fix
 
 1. Wait for every planned role. Save each reply and merge them:
-   `python3 <skill>/scripts/merge_findings.py <replies> --head <sha> --repo-root <tree>`.
+   `python3 <skill>/scripts/merge_findings.py <replies> --manifest <packet>/manifest.json --head <sha> --repo-root <tree>`.
    It groups the same issue reported by several roles, keeps every source, and
-   flags incomplete or stale-head roles. Do not average away disagreement.
+   flags incomplete, missing, duplicate, unexpected or stale-head roles.
+   The manifest is required; never rebuild its expected role list from returned
+   replies, since an omitted reviewer would disappear from the gate. Do not average away disagreement.
 2. Verify each group against code and repository rules. Unsupported assumptions
    are not confirmed problems; missing context is not disproof.
 3. Judge factual support separately from importance. Fix supported in-scope

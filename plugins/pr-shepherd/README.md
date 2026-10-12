@@ -84,7 +84,8 @@ Changes to telemetry emission, sampling rates and telemetry-path eligibility
 route Icarus even when the downstream transport is unchanged. Its structured
 `performance_assessment` distinguishes assessed volume, material unknowns and
 changes with no aggregate impact. The merged gate rejects missing/unassessed
-Icarus assessments; update old review results before relying on them. This does
+Icarus assessments; update old review results before relying on them. The merger
+now requires `--manifest <packet>/manifest.json` to verify every planned role. This does
 not change reviewer models or configure a remote service such as Pegasus.
 See [the protocol](skills/pr-shepherd/references/local-review.md#workload-context-for-performance).
 
@@ -227,6 +228,7 @@ skills/pr-shepherd/
   agents/opencode/*.md        the four OpenCode reviewer agents (mixed providers)
   agents/dsh/cordis.patch.yml the two DeepSeek Harness reviewer tools (DeepSeek Flash)
   references/
+    performance.md            aggregate workload, telemetry budgets and sampling assessment
     local-review.md           freezing the snapshot, review packet, fix loop, pass gate
     roles.md                  roles, what each leaves to others, Basic / Standard / Deep routing
     claude-models.md          Claude role-to-model matrix
@@ -244,6 +246,7 @@ skills/pr-shepherd/
     check_matrix.py           definitions vs matrix tables, "last verified" age
     install.py                link installer (Claude, Codex, OpenCode agents, dsh tools)
 tests/test_scripts.py         tests for the scripts (run in CI)
+tests/test_performance.py     telemetry routing, workload provenance and assessment gate
 evals/                        `claude plugin eval` cases: no push before review,
                               prose exemption, no attestation when incomplete,
                               asking about product decisions

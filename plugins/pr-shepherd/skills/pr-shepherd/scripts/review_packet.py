@@ -457,7 +457,7 @@ def _compile(table):
 
 PERFORMANCE_RX, LANGUAGE_RX = _compile(PERFORMANCE_SIGNALS), _compile(LANGUAGE_LINES)
 TELEMETRY_PATH = re.compile(
-    r"(^|[/_.-])(?:telemetry|analytics|metrics|logging|tracing|observability|instrumentation|traffic[-_]observation)(?=[/_.-]|$)", re.I)
+    r"(^|[/_.-])(?:telemetry|analytics|tracking|metrics|logging|tracing|observability|instrumentation|traffic[-_]observation)(?=[/_.-]|$)", re.I)
 LANGUAGE_PATH_RX = {name: re.compile(p, re.I) for name, p in LANGUAGE_PATHS.items()}
 # Icarus line signals skip files whose keys only look like runtime work
 # (CI cache:/timeout-minutes:, Docker --no-cache and HEALTHCHECK --retries, styles, manifests).
